@@ -3,6 +3,7 @@ const cors = require('cors');
 const mysql = require('mysql2/promise');
 const redis = require('redis');
 const graphRoutes = require('./routes/graph');
+const chatRoutes = require('./routes/chat');
 require('dotenv').config();
 
 const app = express();
@@ -11,6 +12,7 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 app.use('/graph', graphRoutes);
+app.use('/chat', chatRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to Noema API!' });
