@@ -4,18 +4,21 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "migrate": "node src/db/migrate.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "mysql2": "^3.22.0",
-    "redis": "^5.11.0"
+    "redis": "^5.11.0",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
