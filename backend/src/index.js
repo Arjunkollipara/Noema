@@ -4,6 +4,9 @@ const mysql = require('mysql2/promise');
 const redis = require('redis');
 const graphRoutes = require('./routes/graph');
 const chatRoutes = require('./routes/chat');
+const { startDecayScheduler } = require('./services/decay');
+const decayRoutes = require('./routes/decay');
+const { ensureCollection } = require('./services/memory');
 require('dotenv').config();
 
 const app = express();
@@ -13,6 +16,7 @@ app.use(cors());
 app.use(express.json());
 app.use('/graph', graphRoutes);
 app.use('/chat', chatRoutes);
+app.use('/decay', decayRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to Noema API!' });
@@ -92,6 +96,14 @@ async function startServer() {
   } catch (err) {
     console.error('[noema-api] migration failed:', err.message);
     process.exit(1);
+  }
+
+  startDecayScheduler();
+
+  try {
+    await ensureCollection();
+  } catch (err) {
+    console.error('[memory] qdrant init error:', err.message);
   }
 
   app.listen(PORT, () => {

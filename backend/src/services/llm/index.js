@@ -2,6 +2,7 @@ const pool = require('../../db/pool');
 const { getProvider } = require('./provider');
 const { buildSystemPrompt, buildClassifierPrompt } = require('./prompts');
 const { v4: uuidv4 } = require('uuid');
+const { storeTrace, findSimilarNodes } = require('../memory');
 
 // CLASSIFIER
 
@@ -75,7 +76,7 @@ async function chat({ nodeId, userId, userMessage }) {
     [nodeId]
   );
 
-  // 3. Load neighbour context (one hop)
+  // 3. Load neighbour context (one hop) + similar nodes from memory
   const [edges] = await pool.query(
     'SELECT source_id, target_id FROM edges WHERE (source_id = ? OR target_id = ?) AND user_id = ?',
     [nodeId, nodeId, userId]
@@ -91,6 +92,21 @@ async function chat({ nodeId, userId, userMessage }) {
       neighbourIds
     );
     neighbours = nRows;
+  }
+
+  const similarNodes = await findSimilarNodes({
+    userId,
+    text: userMessage,
+    excludeNodeId: nodeId,
+    limit: 2,
+  });
+
+  const allTitles = new Set(neighbours.map(n => n.title));
+  for (const s of similarNodes) {
+    if (!allTitles.has(s.node_title)) {
+      neighbours.push({ title: s.node_title, summary: s.content });
+      allTitles.add(s.node_title);
+    }
   }
 
   // 4. Build system prompt for current phase
@@ -146,11 +162,34 @@ async function chat({ nodeId, userId, userMessage }) {
     [uuidv4(), nodeId, userId, 'assistant', assistantMessage, newPhase]
   );
 
+  // Store understanding trace if user message looks like an explanation
+  if (classifierResult.is_explanation) {
+    await storeTrace({
+      nodeId,
+      userId,
+      content: userMessage,
+      phase: newPhase,
+    }).catch(err => console.error('[memory] storeTrace error:', err.message));
+  }
+
   // 11. Update node visit metadata
-  await pool.query(
-    'UPDATE nodes SET visit_count = visit_count + 1, last_visited = NOW() WHERE id = ?',
-    [nodeId]
+  const [msgCount] = await pool.query(
+    'SELECT COUNT(*) as count FROM messages WHERE node_id = ? AND role = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)',
+    [nodeId, 'user']
   );
+  const sessionMessages = msgCount[0].count;
+  if (sessionMessages >= 3) {
+    await pool.query(
+      'UPDATE nodes SET visit_count = visit_count + 1, last_visited = NOW(), decay_score = 1.0 WHERE id = ?',
+      [nodeId]
+    );
+    console.log(`[decay] node ${nodeId} decay reset to 1.0 after ${sessionMessages} messages`);
+  } else {
+    await pool.query(
+      'UPDATE nodes SET visit_count = visit_count + 1, last_visited = NOW() WHERE id = ?',
+      [nodeId]
+    );
+  }
 
   return {
     message: assistantMessage,
