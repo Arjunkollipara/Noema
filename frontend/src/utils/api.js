@@ -27,3 +27,25 @@ export async function deleteNode(id) {
   if (!res.ok) throw new Error('Failed to delete node');
   return res.json();
 }
+
+export async function fetchHistory(nodeId) {
+  const res = await fetch(`/api/chat/${nodeId}/history`);
+  if (!res.ok) throw new Error('Failed to fetch history');
+  return res.json();
+}
+
+export async function sendMessage(nodeId, message) {
+  const res = await fetch(`/api/chat/${nodeId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  });
+  if (!res.ok) throw new Error('Failed to send message');
+  return res.json();
+}
+
+export async function fetchProvider() {
+  const res = await fetch('/api/chat/provider');
+  if (!res.ok) throw new Error('Failed to fetch provider');
+  return res.json();
+}

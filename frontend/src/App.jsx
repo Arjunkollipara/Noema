@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Graph from './components/Graph';
 import NodePanel from './components/NodePanel';
 import CreateNodeModal from './components/CreateNodeModal';
+import ChatPanel from './components/ChatPanel';
 import { fetchNodes, fetchEdges, createNode, deleteNode } from './utils/api';
 
 export default function App() {
@@ -11,6 +12,7 @@ export default function App() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [chatNode, setChatNode] = useState(null);
 
   // Load graph data on mount
   async function loadGraph() {
@@ -62,10 +64,9 @@ export default function App() {
     }
   }
 
-  function handleEnterChat(node) {
-    // Sprint 5 will wire this to the chat panel
-    alert(`Chat for "${node.title}" coming in Sprint 5`);
-  }
+  function handleEnterChat(node) { setChatNode(node); }
+  function handleCloseChat() { setChatNode(null); loadGraph(); }
+  async function handleNodeSpawned(newNode) { setChatNode(null); await loadGraph(); }
 
   if (loading) return (
     <div style={{
@@ -149,6 +150,15 @@ export default function App() {
           onConfirm={handleCreateNode}
           onCancel={() => setShowCreateModal(false)}
           parentNode={selectedNode}
+        />
+      )}
+
+      {/* Chat panel */}
+      {chatNode && (
+        <ChatPanel
+          node={chatNode}
+          onClose={handleCloseChat}
+          onNodeSpawned={handleNodeSpawned}
         />
       )}
     </div>
