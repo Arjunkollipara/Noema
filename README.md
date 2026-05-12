@@ -70,6 +70,8 @@ The system is designed to support both cloud-hosted and fully local AI workflows
 Currently in active development.
 Sprint 5 is focused on graph evolution, memory decay mechanics, and semantic retrieval.
 
+
+Knowledge is not collected here — it is cultivated, reinforced, and remembered.
 ---
 
 *Conceived and built by Arjun Kollipara — 2026*
