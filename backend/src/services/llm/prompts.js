@@ -84,4 +84,58 @@ Respond with exactly this JSON format:
 Nothing else. No preamble. No markdown. Just the JSON object.`;
 }
 
-module.exports = { buildSystemPrompt, buildClassifierPrompt };
+/**
+ * SPRINT 1: CONCEPT SYNTHESIZER
+ * Builds the prompt used by the background worker to update the persistent conceptual state.
+ */
+function buildSynthesisPrompt({ nodeTitle, currentState, recentMessages }) {
+  // Use a default state if the node has never been synthesized before.
+  const baseState = currentState || {
+    current_summary: "",
+    frontier: [],
+    personal_lexicon: [],
+    version: 0
+  };
+
+  const messagesText = recentMessages
+    .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+    .join('\n\n');
+
+  return `You are a "Concept Synthesizer." Your job is to evolve the user's persistent understanding of the concept: "${nodeTitle}".
+
+---
+CURRENT STATE:
+${JSON.stringify(baseState, null, 2)}
+
+---
+RECENT CONVERSATION:
+${messagesText}
+
+---
+TASK:
+Update the CURRENT STATE based on the RECENT CONVERSATION.
+
+INSTRUCTIONS:
+1. "current_summary": Evolve the existing summary. Do NOT replace it entirely. Incorporate new insights but preserve the user's own analogies and phrasing. Max 1000 characters.
+2. "frontier": Identify 2-3 specific leads, unresolved questions, or gaps in understanding that emerged. Be specific.
+3. "personal_lexicon": Extract unique words, metaphors, or analogies the user preferred during this session.
+4. "version": Increment the version by 1.
+5. PRESERVATION: If the conversation lacks meaningful insight or is too short, return the CURRENT STATE exactly as is (but increment version).
+6. TONE: Avoid "The user understands..." or "This session discussed...". Use "The user sees this as..." or "We know..." - prioritize the user's perspective.
+
+OUTPUT:
+Respond with ONLY a single JSON object. No markdown. No preamble. No code fences.
+
+{
+  "current_summary": "...",
+  "frontier": ["...", "..."],
+  "personal_lexicon": ["...", "..."],
+  "version": ${baseState.version + 1}
+}`;
+}
+
+module.exports = { 
+  buildSystemPrompt, 
+  buildClassifierPrompt,
+  buildSynthesisPrompt 
+};

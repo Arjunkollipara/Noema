@@ -4,15 +4,12 @@ const pool = require('../db/pool');
 
 const router = express.Router();
 
-// TEMPORARY - will be replaced by real auth in Sprint 8
-const TEMP_USER_ID = 'temp-user-001';
-
 // GET /api/graph/nodes - get all nodes for the user
 router.get('/nodes', async (req, res) => {
   try {
     const [rows] = await pool.query(
       'SELECT * FROM nodes WHERE user_id = ? ORDER BY created_at DESC',
-      [TEMP_USER_ID]
+      [req.userId]
     );
     res.json({ nodes: rows });
   } catch (err) {
@@ -28,7 +25,7 @@ router.get('/nodes/:id', async (req, res) => {
 
     const [nodes] = await pool.query(
       'SELECT * FROM nodes WHERE id = ? AND user_id = ?',
-      [id, TEMP_USER_ID]
+      [id, req.userId]
     );
 
     if (nodes.length === 0) {
@@ -38,7 +35,7 @@ router.get('/nodes/:id', async (req, res) => {
     // Fetch direct neighbours (one hop)
     const [edges] = await pool.query(
       'SELECT * FROM edges WHERE (source_id = ? OR target_id = ?) AND user_id = ?',
-      [id, id, TEMP_USER_ID]
+      [id, id, req.userId]
     );
 
     const neighbourIds = edges.map(e =>
@@ -81,7 +78,7 @@ router.post('/nodes', async (req, res) => {
     await pool.query(
       `INSERT INTO nodes (id, user_id, title, summary, phase, decay_score, visit_count, last_visited, created_at)
        VALUES (?, ?, ?, ?, 'explore', 1.0, 0, ?, ?)`,
-      [id, TEMP_USER_ID, title.trim(), summary || null, now, now]
+      [id, req.userId, title.trim(), summary || null, now, now]
     );
 
     // If spawned from a parent node, create the edge
@@ -91,7 +88,7 @@ router.post('/nodes', async (req, res) => {
       await pool.query(
         `INSERT INTO edges (id, user_id, source_id, target_id, edge_type)
          VALUES (?, ?, ?, ?, ?)`,
-        [edgeId, TEMP_USER_ID, parent_id, id, type]
+        [edgeId, req.userId, parent_id, id, type]
       );
     }
 
@@ -120,7 +117,7 @@ router.patch('/nodes/:id', async (req, res) => {
 
     const [existing] = await pool.query(
       'SELECT * FROM nodes WHERE id = ? AND user_id = ?',
-      [id, TEMP_USER_ID]
+      [id, req.userId]
     );
 
     if (existing.length === 0) {
@@ -137,7 +134,7 @@ router.patch('/nodes/:id', async (req, res) => {
     }
 
     const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
-    const values = [...Object.values(updates), id, TEMP_USER_ID];
+    const values = [...Object.values(updates), id, req.userId];
 
     await pool.query(
       `UPDATE nodes SET ${fields} WHERE id = ? AND user_id = ?`,
@@ -159,14 +156,14 @@ router.delete('/nodes/:id', async (req, res) => {
 
     const [existing] = await pool.query(
       'SELECT * FROM nodes WHERE id = ? AND user_id = ?',
-      [id, TEMP_USER_ID]
+      [id, req.userId]
     );
 
     if (existing.length === 0) {
       return res.status(404).json({ error: 'Node not found' });
     }
 
-    await pool.query('DELETE FROM nodes WHERE id = ? AND user_id = ?', [id, TEMP_USER_ID]);
+    await pool.query('DELETE FROM nodes WHERE id = ? AND user_id = ?', [id, req.userId]);
     res.json({ message: 'Node deleted' });
   } catch (err) {
     console.error('[graph] DELETE /nodes/:id error:', err);
@@ -179,7 +176,7 @@ router.get('/edges', async (req, res) => {
   try {
     const [rows] = await pool.query(
       'SELECT * FROM edges WHERE user_id = ?',
-      [TEMP_USER_ID]
+      [req.userId]
     );
     res.json({ edges: rows });
   } catch (err) {
@@ -205,11 +202,11 @@ router.post('/edges', async (req, res) => {
     // Verify both nodes exist and belong to this user
     const [sourceRows] = await pool.query(
       'SELECT id FROM nodes WHERE id = ? AND user_id = ?',
-      [source_id, TEMP_USER_ID]
+      [source_id, req.userId]
     );
     const [targetRows] = await pool.query(
       'SELECT id FROM nodes WHERE id = ? AND user_id = ?',
-      [target_id, TEMP_USER_ID]
+      [target_id, req.userId]
     );
 
     if (sourceRows.length === 0 || targetRows.length === 0) {
@@ -220,7 +217,7 @@ router.post('/edges', async (req, res) => {
     await pool.query(
       `INSERT INTO edges (id, user_id, source_id, target_id, edge_type)
        VALUES (?, ?, ?, ?, ?)`,
-      [id, TEMP_USER_ID, source_id, target_id, edge_type || 'discovered_from']
+      [id, req.userId, source_id, target_id, edge_type || 'discovered_from']
     );
 
     const [rows] = await pool.query('SELECT * FROM edges WHERE id = ?', [id]);
@@ -238,14 +235,14 @@ router.delete('/edges/:id', async (req, res) => {
 
     const [existing] = await pool.query(
       'SELECT * FROM edges WHERE id = ? AND user_id = ?',
-      [id, TEMP_USER_ID]
+      [id, req.userId]
     );
 
     if (existing.length === 0) {
       return res.status(404).json({ error: 'Edge not found' });
     }
 
-    await pool.query('DELETE FROM edges WHERE id = ? AND user_id = ?', [id, TEMP_USER_ID]);
+    await pool.query('DELETE FROM edges WHERE id = ? AND user_id = ?', [id, req.userId]);
     res.json({ message: 'Edge deleted' });
   } catch (err) {
     console.error('[graph] DELETE /edges/:id error:', err);

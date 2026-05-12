@@ -101,15 +101,30 @@ export default function NodePanel({ node, onClose, onDelete, onEnterChat }) {
         </div>
       </div>
 
-      {/* Summary */}
-      {node.summary && (
-        <div style={{
-          background: '#1e1e2e', borderRadius: '8px', padding: '12px',
-          fontSize: '13px', color: '#9ca3af', lineHeight: '1.6',
-        }}>
-          {node.summary}
+      {/* SPRINT 1: Conceptual Continuity (Synthesized Summary) */}
+      <div style={{
+        background: '#1e1e2e', borderRadius: '8px', padding: '12px',
+        fontSize: '13px', color: '#9ca3af', lineHeight: '1.6',
+        display: 'flex', flexDirection: 'column', gap: '8px'
+      }}>
+        <div style={{ fontSize: '11px', color: '#3a3a4e', fontWeight: '600', textTransform: 'uppercase' }}>
+          Evolving Understanding
         </div>
-      )}
+        <div style={{ color: '#9ca3af' }}>
+          {/* Fallback to original summary if mvi_state is not yet available */}
+          {node.mvi_state?.current_summary || node.summary || "No description yet."}
+        </div>
+        
+        {/* Last synthesis timestamp */}
+        {node.last_synthesized_at && (
+          <div style={{ 
+            marginTop: '4px', fontSize: '10px', color: '#2a2a3e', 
+            fontStyle: 'italic'
+          }}>
+            Updated: {new Date(node.last_synthesized_at).toLocaleString()}
+          </div>
+        )}
+      </div>
 
       {/* Actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 'auto' }}>

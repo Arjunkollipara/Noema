@@ -9,8 +9,6 @@ const qdrant = new QdrantClient({
 const COLLECTION = 'noema_traces';
 const VECTOR_SIZE = 1536;
 
-// ── Setup ──────────────────────────────────────────────────────────────────
-
 async function ensureCollection() {
   try {
     await qdrant.getCollection(COLLECTION);
@@ -21,14 +19,6 @@ async function ensureCollection() {
     });
     console.log('[memory] collection created');
   }
-}
-
-// ── Embedding ──────────────────────────────────────────────────────────────
-
-async function embedText(text) {
-  // Use a hash-based fallback that produces a consistent vector for the same text.
-  const vector = textToVector(text, VECTOR_SIZE);
-  return vector;
 }
 
 function textToVector(text, size) {
@@ -44,21 +34,18 @@ function textToVector(text, size) {
   return magnitude > 0 ? vector.map(v => v / magnitude) : vector;
 }
 
-// ── Store trace ────────────────────────────────────────────────────────────
+async function embedText(text) {
+  return textToVector(text, VECTOR_SIZE);
+}
 
 async function storeTrace({ nodeId, userId, content, phase }) {
-  // Save to MySQL
   const traceId = uuidv4();
   await pool.query(
     'INSERT INTO understanding_traces (id, node_id, user_id, content, captured_at) VALUES (?, ?, ?, ?, NOW())',
     [traceId, nodeId, userId, content]
   );
-
-  // Get node title for metadata
   const [nodes] = await pool.query('SELECT title FROM nodes WHERE id = ?', [nodeId]);
   const title = nodes[0]?.title || '';
-
-  // Embed and store in Qdrant
   const vector = await embedText(content);
   await qdrant.upsert(COLLECTION, {
     points: [{
@@ -74,12 +61,9 @@ async function storeTrace({ nodeId, userId, content, phase }) {
       },
     }],
   });
-
   console.log(`[memory] stored trace for node "${title}" phase:${phase}`);
   return traceId;
 }
-
-// ── Search similar ─────────────────────────────────────────────────────────
 
 async function findSimilarNodes({ userId, text, excludeNodeId, limit = 3 }) {
   try {
@@ -92,7 +76,6 @@ async function findSimilarNodes({ userId, text, excludeNodeId, limit = 3 }) {
       },
       with_payload: true,
     });
-
     return results
       .filter(r => r.payload.node_id !== excludeNodeId)
       .slice(0, limit)

@@ -139,6 +139,39 @@ export default function ChatPanel({ node, onClose, onNodeSpawned }) {
         <div ref={bottomRef} />
       </div>
 
+      {/* SPRINT 1: Frontier Suggestions */}
+      {node.mvi_state?.frontier?.length > 0 && input.trim() === '' && !loading && (
+        <div style={{ 
+          padding: '0 24px 12px 24px', 
+          display: 'flex', 
+          gap: '8px', 
+          flexWrap: 'wrap',
+          flexShrink: 0 
+        }}>
+          {node.mvi_state.frontier.map((lead, i) => (
+            <button
+              key={i}
+              onClick={() => setInput(lead)}
+              style={{
+                background: '#1a1a2e',
+                border: '1px solid #2a2a3e',
+                borderRadius: '16px',
+                padding: '6px 12px',
+                fontSize: '11px',
+                color: '#6b7280',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                outline: 'none'
+              }}
+              onMouseOver={e => e.currentTarget.style.borderColor = '#f59e0b'}
+              onMouseOut={e => e.currentTarget.style.borderColor = '#2a2a3e'}
+            >
+              {lead}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Input */}
       <div style={{ padding:'16px 24px', borderTop:'1px solid #1e1e2e', display:'flex', gap:'10px', flexShrink:0 }}>
         <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}

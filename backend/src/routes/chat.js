@@ -3,14 +3,11 @@ const { chat, getHistory } = require('../services/llm');
 
 const router = express.Router();
 
-// TEMPORARY - replaced by real auth in Sprint 8
-const TEMP_USER_ID = 'temp-user-001';
-
 // GET /api/chat/:nodeId/history
 router.get('/:nodeId/history', async (req, res) => {
   try {
     const { nodeId } = req.params;
-    const messages = await getHistory(nodeId, TEMP_USER_ID);
+    const messages = await getHistory(nodeId, req.userId);
     res.json({ messages });
   } catch (err) {
     console.error('[chat] GET history error:', err);
@@ -37,7 +34,7 @@ router.post('/:nodeId', async (req, res) => {
 
     const result = await chat({
       nodeId,
-      userId: TEMP_USER_ID,
+      userId: req.userId,
       userMessage: message.trim(),
     });
 

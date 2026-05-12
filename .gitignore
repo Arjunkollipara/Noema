@@ -9,3 +9,6 @@ postgres_data/
 mysql_data/
 qdrant_data/
 redis_data/
+cookies.txt
+.vscode/
+.idea/

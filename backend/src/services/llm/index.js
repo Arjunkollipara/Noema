@@ -4,6 +4,33 @@ const { buildSystemPrompt, buildClassifierPrompt } = require('./prompts');
 const { v4: uuidv4 } = require('uuid');
 const { storeTrace, findSimilarNodes } = require('../memory');
 
+// SPRINT 1: Helper to inject MVI State into the system prompt
+function injectMviContext(systemPrompt, mviState) {
+  if (!mviState) return systemPrompt;
+
+  const { current_summary, frontier, personal_lexicon } = mviState;
+  
+  // Truncate summary to preserve token budget
+  const truncatedSummary = (current_summary || "None yet.").slice(0, 1000);
+  
+  const mviBlock = `
+---
+CONTINUITY CONTEXT:
+Current understanding:
+${truncatedSummary}
+
+Open conceptual leads:
+${(frontier && frontier.length > 0) ? frontier.map(f => `- ${f}`).join('\n') : "None identified yet."}
+
+Preferred terminology:
+${(personal_lexicon && personal_lexicon.length > 0) ? personal_lexicon.map(l => `- ${l}`).join('\n') : "No specific terminology established."}
+---
+`;
+
+  // Injecting into the system message after the persona and node context
+  return `${systemPrompt}\n${mviBlock}`;
+}
+
 // CLASSIFIER
 
 async function classifyMessage(content) {
@@ -110,12 +137,15 @@ async function chat({ nodeId, userId, userMessage }) {
   }
 
   // 4. Build system prompt for current phase
-  const systemPrompt = buildSystemPrompt(
+  const baseSystemPrompt = buildSystemPrompt(
     node.phase,
     node.title,
     node.summary,
     neighbours
   );
+
+  // SPRINT 1: Inject MVI Continuity State into the system prompt
+  const systemPrompt = injectMviContext(baseSystemPrompt, node.mvi_state);
 
   // 5. Run classifier on user message in parallel with saving it
   const [classifierResult] = await Promise.all([
@@ -135,10 +165,11 @@ async function chat({ nodeId, userId, userMessage }) {
   );
 
   // 7. If phase advanced, rebuild system prompt with new phase
-  const finalSystemPrompt =
-    newPhase !== node.phase
-      ? buildSystemPrompt(newPhase, node.title, node.summary, neighbours)
-      : systemPrompt;
+  let finalSystemPrompt = systemPrompt;
+  if (newPhase !== node.phase) {
+    const updatedBasePrompt = buildSystemPrompt(newPhase, node.title, node.summary, neighbours);
+    finalSystemPrompt = injectMviContext(updatedBasePrompt, node.mvi_state);
+  }
 
   // 8. Build messages array
   const messages = [
@@ -179,16 +210,19 @@ async function chat({ nodeId, userId, userMessage }) {
   );
   const sessionMessages = msgCount[0].count;
   if (sessionMessages >= 3) {
+    // SPRINT 1: Added needs_synthesis = 1
     await pool.query(
-      'UPDATE nodes SET visit_count = visit_count + 1, last_visited = NOW(), decay_score = 1.0 WHERE id = ?',
+      'UPDATE nodes SET visit_count = visit_count + 1, last_visited = NOW(), decay_score = 1.0, needs_synthesis = 1 WHERE id = ?',
       [nodeId]
     );
-    console.log(`[decay] node ${nodeId} decay reset to 1.0 after ${sessionMessages} messages`);
+    console.log(`[decay] node ${nodeId} decay reset to 1.0 and marked for synthesis`);
   } else {
+    // SPRINT 1: Added needs_synthesis = 1
     await pool.query(
-      'UPDATE nodes SET visit_count = visit_count + 1, last_visited = NOW() WHERE id = ?',
+      'UPDATE nodes SET visit_count = visit_count + 1, last_visited = NOW(), needs_synthesis = 1 WHERE id = ?',
       [nodeId]
     );
+    console.log(`[synthesizer] node ${nodeId} marked for synthesis`);
   }
 
   return {

@@ -2,8 +2,11 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
 const redis = require('redis');
+const cookieParser = require('cookie-parser');
 const graphRoutes = require('./routes/graph');
 const chatRoutes = require('./routes/chat');
+const authRoutes = require('./routes/auth');
+const authMiddleware = require('./middleware/auth');
 const { startDecayScheduler } = require('./services/decay');
 const decayRoutes = require('./routes/decay');
 const { ensureCollection } = require('./services/memory');
@@ -14,9 +17,7 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
-app.use('/graph', graphRoutes);
-app.use('/chat', chatRoutes);
-app.use('/decay', decayRoutes);
+app.use(cookieParser());
 
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to Noema API!' });
@@ -86,6 +87,11 @@ app.get('/health', async (req, res) => {
   res.status(status.status === 'ok' ? 200 : 207).json(status);
 });
 
+app.use('/auth', authRoutes);
+app.use('/graph', authMiddleware, graphRoutes);
+app.use('/chat', authMiddleware, chatRoutes);
+app.use('/decay', authMiddleware, decayRoutes);
+
 async function startServer() {
   // Run migrations before accepting requests
   const { execSync } = require('child_process');
@@ -98,6 +104,9 @@ async function startServer() {
     process.exit(1);
   }
 
+  // 2. Start Schedulers
+  // SPRINT 1 note: startDecayScheduler() now initializes both the 
+  // daily decay job and the minute-by-minute Concept Synthesizer job.
   startDecayScheduler();
 
   try {
