@@ -1,38 +1,75 @@
 # Noema
 
-A living knowledge graph for personal learning.
+*A living knowledge graph for human learning.*
 
-Noema maps how you personally understood things — not what a textbook says,
-but the path you took, the connections you made, and the understanding you built.
-Nodes grow brighter when revisited and fade when forgotten, mirroring how memory works.
+Noema captures how *you* came to understand something — not the polished version from a textbook, but the evolving mental map you built through curiosity, repetition, confusion, and insight.
+
+Ideas become interconnected nodes in a personal knowledge graph. As concepts are revisited, they strengthen and glow brighter; when neglected, they gradually fade, reflecting the way memory naturally reinforces and decays over time.
+
+Instead of storing information as static notes, Noema models learning as a living system:
+dynamic, associative, and deeply personal.
+
+## Core Idea
+
+Most knowledge systems optimize for storage.
+Noema optimizes for understanding.
+
+It tracks:
+
+* the paths between ideas
+* the concepts that reinforced each other
+* the moments where understanding shifted
+* the patterns of recall and forgetting over time
+
+The result is a graph that evolves alongside your thinking.
 
 ## Stack
 
-- **Frontend:** React + Vite + D3
-- **Backend:** Node.js + Express
-- **Database:** MySQL 8.0
-- **Cache:** Redis
-- **Vector store:** Qdrant
-- **LLM:** Groq (free tier) / Ollama (local)
-- **Infrastructure:** Docker, Nginx, GitHub Actions
+* **Frontend:** React, Vite, D3
+* **Backend:** Node.js, Express
+* **Database:** MySQL 8.0
+* **Cache Layer:** Redis
+* **Vector Store:** Qdrant
+* **LLM Integration:** Groq (cloud) / Ollama (local)
+* **Infrastructure:** Docker, Nginx, GitHub Actions
 
-## Running locally
+## Running Locally
 
-1. Clone the repo
-2. Copy `.env.example` to `.env` and fill in your `GROQ_API_KEY`
-   (free at https://console.groq.com)
-3. Run `docker compose up --build`
-4. Open http://localhost
+```bash
+git clone <repo-url>
+cd noema
+cp .env.example .env
+```
+
+Add your `GROQ_API_KEY` to `.env`
+(free keys available via [Groq Console](https://console.groq.com?utm_source=chatgpt.com))
+
+Then start the stack:
+
+```bash
+docker compose up --build
+```
+
+Open:
+
+```text
+http://localhost
+```
 
 ## Architecture
 
-Six Docker services orchestrated by Compose, proxied through Nginx.
-See `/docker` for Dockerfiles and `/nginx` for proxy config.
+Noema runs as a distributed local stack composed of six Docker services orchestrated through Docker Compose and routed through Nginx.
+
+* `/docker` → container definitions
+* `/nginx` → reverse proxy configuration
+
+The system is designed to support both cloud-hosted and fully local AI workflows.
 
 ## Status
 
-Active development. Sprint 5 in progress.
+Currently in active development.
+Sprint 5 is focused on graph evolution, memory decay mechanics, and semantic retrieval.
 
 ---
 
-*Conceived by Arjun Kollipara, 2026*
+*Conceived and built by Arjun Kollipara — 2026*
