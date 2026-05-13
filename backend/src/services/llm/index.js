@@ -1,6 +1,7 @@
 const pool = require('../../db/pool');
 const { getProvider } = require('./provider');
-const { buildSystemPrompt, buildClassifierPrompt } = require('./prompts');
+const { buildSystemPrompt, buildClassifierPrompt, buildStageAwareSystemPrompt } = require('./prompts');
+const { evaluateMessage, maybeAdvanceStage } = require('./evaluator');
 const { v4: uuidv4 } = require('uuid');
 const { storeTrace, findSimilarNodes } = require('../memory');
 
@@ -96,6 +97,7 @@ async function chat({ nodeId, userId, userMessage }) {
   );
   if (nodes.length === 0) throw new Error('Node not found');
   const node = nodes[0];
+  const currentStage = node.cognitive_stage || 1;
 
   // 2. Load conversation history for this node
   const [history] = await pool.query(
@@ -147,14 +149,22 @@ async function chat({ nodeId, userId, userMessage }) {
   // SPRINT 1: Inject MVI Continuity State into the system prompt
   const systemPrompt = injectMviContext(baseSystemPrompt, node.mvi_state);
 
-  // 5. Run classifier on user message in parallel with saving it
-  const [classifierResult] = await Promise.all([
+
+  // 5. Run classifier and evaluator in parallel with saving message
+  const [classifierResult, evaluatorResult] = await Promise.all([
     classifyMessage(userMessage),
+    evaluateMessage({
+      userMessage,
+      nodeTitle: node.title,
+      conversationHistory: history,
+      currentStage,
+    }),
     pool.query(
-      'INSERT INTO messages (id, node_id, user_id, role, content, phase) VALUES (?, ?, ?, ?, ?, ?)',
-      [uuidv4(), nodeId, userId, 'user', userMessage, node.phase]
+      'INSERT INTO messages (id, node_id, user_id, role, content, phase, cognitive_stage) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [uuidv4(), nodeId, userId, 'user', userMessage, node.phase, currentStage]
     ),
   ]);
+
 
   // 6. Maybe advance phase based on classifier
   const newPhase = await maybeAdvancePhase(
@@ -164,12 +174,20 @@ async function chat({ nodeId, userId, userMessage }) {
     classifierResult
   );
 
-  // 7. If phase advanced, rebuild system prompt with new phase
-  let finalSystemPrompt = systemPrompt;
-  if (newPhase !== node.phase) {
-    const updatedBasePrompt = buildSystemPrompt(newPhase, node.title, node.summary, neighbours);
-    finalSystemPrompt = injectMviContext(updatedBasePrompt, node.mvi_state);
-  }
+  // Advance cognitive stage if needed
+  const newStage = await maybeAdvanceStage(nodeId, userId, currentStage, evaluatorResult);
+
+
+  // 7. Build stage-aware system prompt
+  const finalSystemPrompt = buildStageAwareSystemPrompt(
+    newPhase,
+    node.title,
+    node.summary,
+    neighbours,
+    node.mvi_state,
+    newStage,
+    evaluatorResult
+  );
 
   // 8. Build messages array
   const messages = [
@@ -229,6 +247,9 @@ async function chat({ nodeId, userId, userMessage }) {
     message: assistantMessage,
     phase: newPhase,
     phase_advanced: newPhase !== node.phase,
+    cognitive_stage: newStage,
+    stage_advanced: newStage !== currentStage,
+    misconception_detected: evaluatorResult.misconception_detected,
     classifier: classifierResult,
     provider,
   };

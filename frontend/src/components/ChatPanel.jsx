@@ -13,6 +13,7 @@ export default function ChatPanel({ node, onClose, onNodeSpawned }) {
   const [phaseAdvanced, setPhaseAdvanced] = useState(false);
   const [showSpawn, setShowSpawn]       = useState(false);
   const [provider, setProvider]         = useState(null);
+  const [cognitiveStage, setCognitiveStage] = useState(node.cognitive_stage || 1);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -53,6 +54,7 @@ export default function ChatPanel({ node, onClose, onNodeSpawned }) {
         { id:'a-'+Date.now(), role:'assistant', content: result.message, phase: result.phase,  created_at: new Date().toISOString() },
       ]);
       if (result.phase_advanced) { setCurrentPhase(result.phase); setPhaseAdvanced(true); }
+      if (result.stage_advanced) setCognitiveStage(result.cognitive_stage);
       if (result.phase === 'confirm' && !showSpawn) setShowSpawn(true);
     } catch {
       setMessages(prev => prev.filter(m => m.id !== tempId));
@@ -97,6 +99,18 @@ export default function ChatPanel({ node, onClose, onNodeSpawned }) {
           </div>}
         </div>
         <PhaseIndicator phase={currentPhase} phaseAdvanced={phaseAdvanced} />
+        {cognitiveStage && (
+          <div style={{
+            fontSize: '11px',
+            color: '#3a3a4e',
+            background: '#1a1a2e',
+            border: '1px solid #2a2a3e',
+            borderRadius: '4px',
+            padding: '3px 8px',
+          }}>
+            Stage {cognitiveStage}
+          </div>
+        )}
       </div>
 
       {/* Messages */}

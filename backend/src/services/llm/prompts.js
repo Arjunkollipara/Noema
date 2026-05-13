@@ -139,3 +139,82 @@ module.exports = {
   buildClassifierPrompt,
   buildSynthesisPrompt 
 };
+
+
+function buildStageAwareSystemPrompt(phase, nodeTitle, nodeSummary, neighbours, mviState, cognitiveStage, evaluatorResult) {
+
+  const STAGE_INSTRUCTIONS = {
+    1: `The learner is at Stage 1 (Ignition). Ask simple, curiosity-sparking questions. 
+Make them want to know more. Keep it light and inviting. One question only.`,
+    2: `The learner is at Stage 2 (Confusion Identified). They know what they don't know. 
+Hold them in the productive discomfort. Do not rescue them. Ask a question that 
+makes the gap more precise, not smaller.`,
+    3: `The learner is at Stage 3 (Model Constructed). They have a working explanation. 
+Stress test it. Find the collapsed concepts. Force them to treat two things separately. 
+One targeted question only.`,
+    4: `The learner is at Stage 4 (Predictive). They can predict outcomes. 
+Introduce edge cases. Ask what happens when a variable changes unexpectedly. 
+Push toward the boundary of the concept.`,
+    5: `The learner is at Stage 5 (Mastery). Engage as a peer and expert. 
+You may state facts directly. Challenge their assumptions. Debate. 
+Do not simplify. They have earned full intellectual engagement.`,
+  };
+
+  const stageInstruction = STAGE_INSTRUCTIONS[cognitiveStage] || STAGE_INSTRUCTIONS[1];
+
+  let prompt = `You are a Socratic learning guide.
+
+COGNITIVE STAGE INSTRUCTION:
+${stageInstruction}
+`;
+
+  if (evaluatorResult?.misconception_detected && evaluatorResult.misconception_detail) {
+    prompt += `
+MISCONCEPTION DETECTED: ${evaluatorResult.misconception_detail}
+Your question must force the learner to treat these as separate concepts.
+Do not tell them they are wrong. Ask a question that makes the distinction visible.
+`;
+  }
+
+  if (evaluatorResult?.suggested_question_type) {
+    const QUESTION_GUIDANCE = {
+      ignite_curiosity: 'Ask something that makes them want to know more.',
+      name_the_gap: 'Ask them to name exactly what they do not understand yet.',
+      stress_test: 'Find the weakest assumption in their explanation and probe it.',
+      change_variable: 'Ask what happens when one variable in their model changes.',
+      find_boundary: 'Ask where their model breaks down or stops applying.',
+      peer_challenge: 'Challenge their framing directly as an intellectual equal.',
+    };
+    prompt += `\nQUESTION APPROACH: ${QUESTION_GUIDANCE[evaluatorResult.suggested_question_type]}\n`;
+  }
+
+  prompt += `\nConcept: "${nodeTitle}"`;
+
+  if (mviState?.current_summary) {
+    prompt += `\nEvolved understanding so far: "${mviState.current_summary.slice(0, 500)}"`;
+  } else if (nodeSummary) {
+    prompt += `\nInitial description: "${nodeSummary}"`;
+  }
+
+  if (mviState?.frontier?.length > 0) {
+    prompt += `\nOpen conceptual leads: ${mviState.frontier.slice(0, 3).join(', ')}`;
+  }
+
+  if (neighbours?.length > 0) {
+    const nList = neighbours.map(n => n.title).join(', ');
+    prompt += `\nRelated concepts in graph: ${nList}`;
+  }
+
+  if (cognitiveStage < 5) {
+    prompt += `\n\nIMPORTANT: Ask ONE question only. Do not give the answer. Do not explain the concept directly.`;
+  }
+
+  return prompt;
+}
+
+module.exports = {
+  buildSystemPrompt,
+  buildClassifierPrompt,
+  buildSynthesisPrompt,
+  buildStageAwareSystemPrompt,
+};
