@@ -48,7 +48,9 @@ For each detected concept output:
 - evidence: the exact phrase that triggered detection
 - why_relevant: one sentence on why this concept matters here
 
-Only include concepts with confidence >= 0.75.
+Only include concepts with confidence >= 0.92.
+Be very conservative. Only detect concepts you are highly certain about.
+It is better to miss a concept than to create noise.
 If nothing is detected return empty array.
 
 Output ONLY this JSON. No markdown. No preamble:
@@ -91,7 +93,7 @@ async function createInferredNodes({
   const createdTitlesThisBatch = new Set();
 
   for (const concept of detected) {
-    if (concept.confidence < 0.85) continue;
+    if (concept.confidence < 0.92) continue;
 
     const titleLower = concept.concept_name.toLowerCase().trim();
     const alreadyExists = existingNodeTitles

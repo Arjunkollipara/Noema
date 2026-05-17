@@ -5,6 +5,7 @@ const redis = require('redis');
 const cookieParser = require('cookie-parser');
 const graphRoutes = require('./routes/graph');
 const chatRoutes = require('./routes/chat');
+const globalChatRoutes = require('./routes/globalChat');
 const authRoutes = require('./routes/auth');
 const authMiddleware = require('./middleware/auth');
 const { startDecayScheduler } = require('./services/decay');
@@ -67,6 +68,7 @@ app.get('/health', async (req, res) => {
 app.use('/auth', authRoutes);
 app.use('/graph', authMiddleware, graphRoutes);
 app.use('/chat', authMiddleware, chatRoutes);
+app.use('/global', authMiddleware, globalChatRoutes);
 app.use('/decay', authMiddleware, decayRoutes);
 
 async function startServer() {

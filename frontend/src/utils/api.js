@@ -60,3 +60,20 @@ export async function fetchProvider() {
   if (!res.ok) throw new Error('Failed to fetch provider');
   return res.json();
 }
+
+export async function fetchGlobalHistory() {
+  const res = await fetch('/api/global/history', { credentials: 'include' });
+  if (!res.ok) throw new Error('Failed to fetch global history');
+  return res.json();
+}
+
+export async function sendGlobalMessage(message) {
+  const res = await fetch('/api/global/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ message }),
+  });
+  if (!res.ok) throw new Error('Failed to send message');
+  return res.json();
+}

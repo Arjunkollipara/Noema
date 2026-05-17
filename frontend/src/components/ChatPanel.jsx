@@ -60,7 +60,6 @@ export default function ChatPanel({ node, onClose, onNodeSpawned }) {
       if (result.phase === 'confirm' && !showSpawn) setShowSpawn(true);
       if (result.inferred_nodes && result.inferred_nodes.length > 0) {
         setInferredNodes(result.inferred_nodes);
-        onNodeSpawned(result.inferred_nodes[0]);
       }
     } catch {
       setMessages(prev => prev.filter(m => m.id !== tempId));
@@ -73,9 +72,9 @@ export default function ChatPanel({ node, onClose, onNodeSpawned }) {
 
   async function handleSpawn(title) {
     try {
-      const result = await createNode({ title, parent_id: node.id, edge_type: 'discovered_from' });
+      await createNode({ title, parent_id: node.id, edge_type: 'discovered_from' });
       setShowSpawn(false);
-      onNodeSpawned(result.node);
+      // Update graph silently - do NOT navigate away
     } catch (err) { console.error('Spawn failed:', err); }
   }
 

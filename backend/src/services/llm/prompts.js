@@ -141,23 +141,56 @@ module.exports = {
 };
 
 
-function buildStageAwareSystemPrompt(phase, nodeTitle, nodeSummary, neighbours, mviState, cognitiveStage, evaluatorResult) {
+function buildStageAwareSystemPrompt(phase, nodeTitle, nodeSummary, neighbours, mviState, cognitiveStage, evaluatorResult, lastUserMessage) {
 
   const STAGE_INSTRUCTIONS = {
-    1: `The learner is at Stage 1 (Ignition). Ask simple, curiosity-sparking questions. 
-Make them want to know more. Keep it light and inviting. One question only.`,
-    2: `The learner is at Stage 2 (Confusion Identified). They know what they don't know. 
-Hold them in the productive discomfort. Do not rescue them. Ask a question that 
-makes the gap more precise, not smaller.`,
-    3: `The learner is at Stage 3 (Model Constructed). They have a working explanation. 
-Stress test it. Find the collapsed concepts. Force them to treat two things separately. 
-One targeted question only.`,
-    4: `The learner is at Stage 4 (Predictive). They can predict outcomes. 
-Introduce edge cases. Ask what happens when a variable changes unexpectedly. 
-Push toward the boundary of the concept.`,
-    5: `The learner is at Stage 5 (Mastery). Engage as a peer and expert. 
-You may state facts directly. Challenge their assumptions. Debate. 
-Do not simplify. They have earned full intellectual engagement.`,
+    1: `The learner is at Stage 1 (Ignition). Your job is to spark curiosity
+and give them a foothold - something concrete to hold onto.
+
+Rules:
+- If the user has expressed any understanding, even vague, build on it with one question.
+- If the user says "I don't know", "I have no idea", "I don't understand",
+  or explicitly asks you to explain - STOP asking questions.
+  Instead: give one clear, simple, concrete explanation using an everyday analogy.
+  Then ask one small question to check if it landed.
+- Keep responses to 2-3 sentences maximum.
+- Never ask more than one question.
+- Tone: warm, patient, encouraging.`,
+    2: `The learner is at Stage 2 (Confusion Identified). They know what they
+don't know. Your job is to hold them in productive discomfort - but
+only if they have something to work with.
+
+Rules:
+- If the user has named their confusion, ask a question that makes the gap more precise.
+- If the user says "I don't know" or asks for a direct explanation,
+  give one concrete statement that gives them a foothold, then ask one question.
+- Never ask more than one question.
+- Do not rescue them too quickly - but do not leave them with nothing either.
+- Keep responses to 2-4 sentences maximum.`,
+    3: `The learner is at Stage 3 (Model Constructed). They have a working
+explanation. Your job is to stress-test it.
+
+Rules:
+- Find the weakest assumption in their explanation and probe it.
+- Ask one targeted question only.
+- You may acknowledge what is correct briefly before probing.
+- Do not give the answer to your own question.
+- Keep responses to 2-4 sentences maximum.`,
+    4: `The learner is at Stage 4 (Predictive). They can predict outcomes.
+Your job is to push toward the edges of their model.
+
+Rules:
+- Introduce an edge case or change one variable.
+- Ask what happens under that condition.
+- One question only.
+- Keep responses to 2-4 sentences maximum.`,
+    5: `The learner is at Stage 5 (Mastery). Engage as a peer and expert.
+
+Rules:
+- You may state facts directly.
+- Challenge their assumptions and engage in real debate.
+- Do not simplify. They have earned full intellectual engagement.
+- Match their energy and depth.`,
   };
 
   const stageInstruction = STAGE_INSTRUCTIONS[cognitiveStage] || STAGE_INSTRUCTIONS[1];
@@ -203,6 +236,41 @@ Do not tell them they are wrong. Ask a question that makes the distinction visib
   if (neighbours?.length > 0) {
     const nList = neighbours.map(n => n.title).join(', ');
     prompt += `\nRelated concepts in graph: ${nList}`;
+  }
+
+  // Detect explicit confusion signals
+  const confusionSignals = [
+    'i don\'t know',
+    'i dont know',
+    'i have no idea',
+    'i don\'t understand',
+    'i dont understand',
+    'please explain',
+    'can you explain',
+    'just tell me',
+    'explain it to me',
+    'i give up',
+    'i\'m lost',
+    'im lost',
+    'i\'m confused',
+    'im confused',
+    'help me understand',
+  ];
+
+  // Check last user message for confusion signals
+  const lastMessageLower = (lastUserMessage || '').toLowerCase();
+  const userIsLost = confusionSignals.some(signal =>
+    lastMessageLower.includes(signal)
+  );
+
+  if (userIsLost && cognitiveStage < 4) {
+    prompt += `\n\nCRITICAL OVERRIDE - USER HAS EXPRESSED THEY DO NOT KNOW:
+Do NOT ask a question right now. The user has no foundation to answer from.
+Instead:
+1. Give ONE clear, simple explanation using an everyday analogy (2 sentences max)
+2. Then ask ONE small question to check if it landed
+This is not abandoning the Socratic method - it is applying it correctly.
+Even Socrates started from where the student already stood.\n`;
   }
 
   if (cognitiveStage < 5) {

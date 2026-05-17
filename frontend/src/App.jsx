@@ -3,6 +3,7 @@ import Graph from './components/Graph';
 import NodePanel from './components/NodePanel';
 import CreateNodeModal from './components/CreateNodeModal';
 import ChatPanel from './components/ChatPanel';
+import GlobalChat from './components/GlobalChat';
 import AuthScreen from './components/AuthScreen';
 import { fetchNodes, fetchEdges, createNode, deleteNode, anchorNode } from './utils/api';
 
@@ -14,6 +15,7 @@ export default function App() {
   const [loading, setLoading] = useState(false); // Initialized to false to prevent hang before auth
   const [error, setError] = useState(null);
   const [chatNode, setChatNode] = useState(null);
+  const [showGlobalChat, setShowGlobalChat] = useState(false);
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
@@ -71,6 +73,19 @@ export default function App() {
 
   function handleClosePanel() {
     setSelectedNode(null);
+  }
+
+  function handleOpenGlobalChat() {
+    setShowGlobalChat(true);
+  }
+
+  function handleCloseGlobalChat() {
+    setShowGlobalChat(false);
+    loadGraph();
+  }
+
+  function handleGraphUpdate() {
+    loadGraph();
   }
 
   async function handleDeleteNode(id) {
@@ -191,10 +206,27 @@ export default function App() {
         zIndex: 50,
       }}>
         <div style={{ fontSize: '18px', fontWeight: '700', color: '#f0f0f8' }}>noema</div>
-        <button onClick={handleLogout} style={{
-          padding: '8px 12px', background: 'none', border: '1px solid #2a2a3e',
-          borderRadius: '8px', color: '#6b7280', fontSize: '13px', cursor: 'pointer'
-        }}>Sign out</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={handleOpenGlobalChat}
+            style={{
+              padding: '8px 16px',
+              background: '#1e1e2e',
+              border: '1px solid #2a2a3e',
+              borderRadius: '8px',
+              color: '#e8e8f0',
+              fontSize: '13px',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            ◎ Think
+          </button>
+          <button onClick={handleLogout} style={{
+            padding: '8px 12px', background: 'none', border: '1px solid #2a2a3e',
+            borderRadius: '8px', color: '#6b7280', fontSize: '13px', cursor: 'pointer'
+          }}>Sign out</button>
+        </div>
       </div>
 
       <div style={{ textAlign: 'center', padding: '40px' }}>
@@ -258,35 +290,49 @@ export default function App() {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <button onClick={handleLogout} style={{
-            pointerEvents: 'auto',
-            padding: '8px 12px',
-            background: 'none',
-            border: '1px solid #2a2a3e',
-            borderRadius: '8px',
-            color: '#6b7280',
-            fontSize: '13px',
-            cursor: 'pointer',
-            marginRight: '8px',
-          }}>
-            Sign out
-          </button>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          style={{
-            pointerEvents: 'auto',
-            padding: '8px 16px',
-            background: '#f59e0b',
-            border: 'none',
-            borderRadius: '8px',
-            color: '#0a0a0f',
-            fontSize: '13px',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}
-        >
-          + New Node
-        </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', pointerEvents: 'auto' }}>
+            <button
+              onClick={handleOpenGlobalChat}
+              style={{
+                padding: '8px 16px',
+                background: '#1e1e2e',
+                border: '1px solid #2a2a3e',
+                borderRadius: '8px',
+                color: '#e8e8f0',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
+              ◎ Think
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              style={{
+                padding: '8px 16px',
+                background: '#f59e0b',
+                border: 'none',
+                borderRadius: '8px',
+                color: '#0a0a0f',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              + New Node
+            </button>
+            <button onClick={handleLogout} style={{
+              background: 'none',
+              border: '1px solid #2a2a3e',
+              borderRadius: '8px',
+              color: '#6b7280',
+              fontSize: '13px',
+              cursor: 'pointer',
+              padding: '8px 12px',
+            }}>
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
 
@@ -315,6 +361,13 @@ export default function App() {
           node={chatNode}
           onClose={handleCloseChat}
           onNodeSpawned={handleNodeSpawned}
+        />
+      )}
+
+      {showGlobalChat && (
+        <GlobalChat
+          onGraphUpdate={handleGraphUpdate}
+          onClose={handleCloseGlobalChat}
         />
       )}
     </div>

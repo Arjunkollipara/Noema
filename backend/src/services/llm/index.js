@@ -207,7 +207,8 @@ async function chat({ nodeId, userId, userMessage }) {
     neighbours,
     node.mvi_state,
     newStage,
-    evaluatorResult
+    evaluatorResult,
+    userMessage
   );
 
   // 8. Build messages array
