@@ -61,29 +61,6 @@ app.get('/health', async (req, res) => {
     status.status = 'degraded';
   }
 
-  // Seed temp user for development (Sprint 8 will replace with real auth)
-  try {
-    const seedPool = require('./db/pool');
-    const { v4: uuidv4 } = require('uuid');
-    const bcrypt = require('bcryptjs');
-    const [existing] = await seedPool.query(
-      'SELECT id FROM users WHERE id = ?',
-      ['temp-user-001']
-    );
-    if (existing.length === 0) {
-      const hash = await bcrypt.hash('dev-password', 10);
-      await seedPool.query(
-        'INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)',
-        ['temp-user-001', 'dev@noema.local', hash]
-      );
-      status.seeded_user = true;
-    } else {
-      status.seeded_user = false;
-    }
-  } catch (e) {
-    status.seed_error = e.message;
-  }
-
   res.status(status.status === 'ok' ? 200 : 207).json(status);
 });
 

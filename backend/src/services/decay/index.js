@@ -132,13 +132,13 @@ function startDecayScheduler() {
     console.log('[decay] scheduled run triggered');
     await runDecayUpdate();
   });
-  console.log('[decay] scheduler started (daily at midnight)');
+  console.log('[decay] scheduler started');
 
   // 2. SPRINT 1 Synthesizer Job: Runs every 60 seconds
   cron.schedule('* * * * *', async () => {
     await runSynthesisBatch();
   });
-  console.log('[synthesizer] worker started (every 60 seconds)');
+  console.log('[synthesizer] worker started');
 }
 
 module.exports = { startDecayScheduler, runDecayUpdate, calculateDecayScore, runSynthesisBatch };

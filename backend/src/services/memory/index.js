@@ -12,13 +12,12 @@ const VECTOR_SIZE = 1536;
 async function ensureCollection() {
   try {
     await qdrant.getCollection(COLLECTION);
-    console.log('[memory] collection exists');
   } catch {
     await qdrant.createCollection(COLLECTION, {
       vectors: { size: VECTOR_SIZE, distance: 'Cosine' },
     });
-    console.log('[memory] collection created');
   }
+  console.log('[memory] collection exists or created');
 }
 
 function textToVector(text, size) {
