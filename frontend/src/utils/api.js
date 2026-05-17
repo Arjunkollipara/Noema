@@ -29,6 +29,15 @@ export async function deleteNode(id) {
   return res.json();
 }
 
+export async function anchorNode(id) {
+  const res = await fetch(`/api/graph/nodes/${id}/anchor`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to anchor node');
+  return res.json();
+}
+
 export async function fetchHistory(nodeId) {
   const res = await fetch(`/api/chat/${nodeId}/history`, { credentials: 'include' });
   if (!res.ok) throw new Error('Failed to fetch history');

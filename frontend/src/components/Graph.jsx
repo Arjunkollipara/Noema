@@ -37,6 +37,11 @@ export default function Graph({ nodes, edges, onNodeClick, selectedNodeId }) {
         edge_type: e.edge_type,
       }));
     const nodeData = Array.from(nodeMap.values());
+    console.log('[graph] nodes:', nodeData.map(n => ({
+      title: n.title,
+      is_anchored: n.is_anchored,
+      node_origin: n.node_origin,
+    })));
 
     // Defs for glow filter
     const defs = svg.append('defs');
@@ -47,6 +52,12 @@ export default function Graph({ nodes, edges, onNodeClick, selectedNodeId }) {
     const feMerge = filter.append('feMerge');
     feMerge.append('feMergeNode').attr('in', 'coloredBlur');
     feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+    defs.append('style').text(`
+      @keyframes nodeFloat {
+        0%, 100% { opacity: 0.4; transform: scale(1); }
+        50% { opacity: 0.8; transform: scale(1.15); }
+      }
+    `);
 
     // Container group for zoom
     const g = svg.append('g');
@@ -93,9 +104,27 @@ export default function Graph({ nodes, edges, onNodeClick, selectedNodeId }) {
     // Main node circle
     node.append('circle')
       .attr('r', d => decayToVisual(d.decay_score).radius)
-      .attr('fill', d => decayToVisual(d.decay_score).colour)
-      .attr('opacity', d => decayToVisual(d.decay_score).opacity)
-      .attr('filter', 'url(#glow)');
+      .attr('class', 'node-main')
+      .attr('fill', d => {
+        if (d.is_anchored === 0) return 'transparent';
+        return decayToVisual(d.decay_score).colour;
+      })
+      .attr('opacity', d => d.is_anchored === 0 ? 0.6 : decayToVisual(d.decay_score).opacity)
+      .attr('stroke', d => {
+        if (d.is_anchored === 0) {
+          if (d.node_origin === 'blocking') return '#ef4444';
+          if (d.node_origin === 'expected') return '#a78bfa';
+          return '#2dd4bf';
+        }
+        return 'none';
+      })
+      .attr('stroke-width', d => d.is_anchored === 0 ? 1.5 : 0)
+      .attr('stroke-dasharray', d => d.is_anchored === 0 ? '4 2' : 'none')
+      .attr('filter', d => d.is_anchored === 1 ? 'url(#glow)' : 'none');
+
+    node.filter(d => d.is_anchored === 0)
+      .select('circle.node-main')
+      .style('animation', 'nodeFloat 2.5s ease-in-out infinite');
 
     // Node label
     node.append('text')
@@ -104,6 +133,23 @@ export default function Graph({ nodes, edges, onNodeClick, selectedNodeId }) {
       .attr('dy', d => decayToVisual(d.decay_score).radius + 14)
       .attr('fill', '#9ca3af')
       .attr('font-size', '11px')
+      .attr('pointer-events', 'none');
+
+    node.filter(d => d.is_anchored === 0)
+      .append('text')
+      .text(d => {
+        if (d.node_origin === 'blocking') return '⊗';
+        if (d.node_origin === 'expected') return '◎';
+        return '◌';
+      })
+      .attr('text-anchor', 'middle')
+      .attr('dy', d => -(decayToVisual(d.decay_score).radius + 8))
+      .attr('fill', d => {
+        if (d.node_origin === 'blocking') return '#ef4444';
+        if (d.node_origin === 'expected') return '#a78bfa';
+        return '#2dd4bf';
+      })
+      .attr('font-size', '10px')
       .attr('pointer-events', 'none');
 
     // Drag behaviour

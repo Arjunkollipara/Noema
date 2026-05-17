@@ -149,6 +149,27 @@ router.patch('/nodes/:id', async (req, res) => {
   }
 });
 
+router.post('/nodes/:id/anchor', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [existing] = await pool.query(
+      'SELECT * FROM nodes WHERE id = ? AND user_id = ?',
+      [id, req.userId]
+    );
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    await pool.query(
+      'UPDATE nodes SET is_anchored = 1 WHERE id = ? AND user_id = ?',
+      [id, req.userId]
+    );
+    res.json({ anchored: true, id });
+  } catch (err) {
+    console.error('[graph] anchor error:', err);
+    res.status(500).json({ error: 'Failed to anchor node' });
+  }
+});
+
 // DELETE /api/graph/nodes/:id - delete a node and its edges
 router.delete('/nodes/:id', async (req, res) => {
   try {
@@ -161,6 +182,16 @@ router.delete('/nodes/:id', async (req, res) => {
 
     if (existing.length === 0) {
       return res.status(404).json({ error: 'Node not found' });
+    }
+
+    // Check if this is an inferred node being rejected
+    const [nodeToDelete] = await pool.query(
+      'SELECT node_origin, is_anchored FROM nodes WHERE id = ? AND user_id = ?',
+      [id, req.userId]
+    );
+    if (nodeToDelete.length > 0 && nodeToDelete[0].is_anchored === 0) {
+      const { recordRejection } = require('../services/llm/detector');
+      await recordRejection(id, req.userId);
     }
 
     await pool.query('DELETE FROM nodes WHERE id = ? AND user_id = ?', [id, req.userId]);

@@ -4,7 +4,7 @@ import NodePanel from './components/NodePanel';
 import CreateNodeModal from './components/CreateNodeModal';
 import ChatPanel from './components/ChatPanel';
 import AuthScreen from './components/AuthScreen';
-import { fetchNodes, fetchEdges, createNode, deleteNode } from './utils/api';
+import { fetchNodes, fetchEdges, createNode, deleteNode, anchorNode } from './utils/api';
 
 export default function App() {
   const [nodes, setNodes] = useState([]);
@@ -109,7 +109,17 @@ export default function App() {
     setError(null);
   }
 
-  function handleEnterChat(node) { setChatNode(node); }
+  async function handleEnterChat(node) {
+    if (node.is_anchored === 0) {
+      try {
+        await anchorNode(node.id);
+        await loadGraph();
+      } catch (err) {
+        console.error('Failed to anchor node:', err);
+      }
+    }
+    setChatNode(node);
+  }
   function handleCloseChat() { setChatNode(null); loadGraph(); }
   async function handleNodeSpawned(newNode) { setChatNode(null); await loadGraph(); }
 

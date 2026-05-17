@@ -2,6 +2,7 @@ const pool = require('../../db/pool');
 const { getProvider } = require('./provider');
 const { buildSystemPrompt, buildClassifierPrompt, buildStageAwareSystemPrompt } = require('./prompts');
 const { evaluateMessage, maybeAdvanceStage } = require('./evaluator');
+const { detectImplicitConcepts, createInferredNodes } = require('./detector');
 const { v4: uuidv4 } = require('uuid');
 const { storeTrace, findSimilarNodes } = require('../memory');
 
@@ -138,6 +139,12 @@ async function chat({ nodeId, userId, userMessage }) {
     }
   }
 
+  const [allUserNodes] = await pool.query(
+    'SELECT title FROM nodes WHERE user_id = ?',
+    [userId]
+  );
+  const existingNodeTitles = allUserNodes.map(n => n.title);
+
   // 4. Build system prompt for current phase
   const baseSystemPrompt = buildSystemPrompt(
     node.phase,
@@ -151,13 +158,20 @@ async function chat({ nodeId, userId, userMessage }) {
 
 
   // 5. Run classifier and evaluator in parallel with saving message
-  const [classifierResult, evaluatorResult] = await Promise.all([
+  const [classifierResult, evaluatorResult, detectedConcepts] = await Promise.all([
     classifyMessage(userMessage),
     evaluateMessage({
       userMessage,
       nodeTitle: node.title,
       conversationHistory: history,
       currentStage,
+    }),
+    detectImplicitConcepts({
+      userMessage,
+      nodeTitle: node.title,
+      conversationHistory: history,
+      userId,
+      sourceNodeId: nodeId,
     }),
     pool.query(
       'INSERT INTO messages (id, node_id, user_id, role, content, phase, cognitive_stage) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -176,6 +190,13 @@ async function chat({ nodeId, userId, userMessage }) {
 
   // Advance cognitive stage if needed
   const newStage = await maybeAdvanceStage(nodeId, userId, currentStage, evaluatorResult);
+
+  const inferredNodes = await createInferredNodes({
+    detected: detectedConcepts,
+    userId,
+    sourceNodeId: nodeId,
+    existingNodeTitles,
+  });
 
 
   // 7. Build stage-aware system prompt
@@ -250,6 +271,7 @@ async function chat({ nodeId, userId, userMessage }) {
     cognitive_stage: newStage,
     stage_advanced: newStage !== currentStage,
     misconception_detected: evaluatorResult.misconception_detected,
+    inferred_nodes: inferredNodes,
     classifier: classifierResult,
     provider,
   };

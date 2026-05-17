@@ -14,6 +14,7 @@ export default function ChatPanel({ node, onClose, onNodeSpawned }) {
   const [showSpawn, setShowSpawn]       = useState(false);
   const [provider, setProvider]         = useState(null);
   const [cognitiveStage, setCognitiveStage] = useState(node.cognitive_stage || 1);
+  const [inferredNodes, setInferredNodes] = useState([]);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -44,6 +45,7 @@ export default function ChatPanel({ node, onClose, onNodeSpawned }) {
     const text = input.trim();
     setInput('');
     setLoading(true);
+    setInferredNodes([]);
     const tempId = 'opt-' + Date.now();
     setMessages(prev => [...prev, { id: tempId, role:'user', content: text, phase: currentPhase, created_at: new Date().toISOString() }]);
     try {
@@ -56,6 +58,10 @@ export default function ChatPanel({ node, onClose, onNodeSpawned }) {
       if (result.phase_advanced) { setCurrentPhase(result.phase); setPhaseAdvanced(true); }
       if (result.stage_advanced) setCognitiveStage(result.cognitive_stage);
       if (result.phase === 'confirm' && !showSpawn) setShowSpawn(true);
+      if (result.inferred_nodes && result.inferred_nodes.length > 0) {
+        setInferredNodes(result.inferred_nodes);
+        onNodeSpawned(result.inferred_nodes[0]);
+      }
     } catch {
       setMessages(prev => prev.filter(m => m.id !== tempId));
       setMessages(prev => [...prev, { id:'err-'+Date.now(), role:'assistant', content:'Something went wrong. Please try again.', phase: currentPhase, created_at: new Date().toISOString() }]);
@@ -135,6 +141,22 @@ export default function ChatPanel({ node, onClose, onNodeSpawned }) {
             {messages.map(msg => <MessageBubble key={msg.id} message={msg} />)}
             {showSpawn && <SpawnSuggestion onSpawn={handleSpawn} onDismiss={() => setShowSpawn(false)} />}
           </>
+        )}
+        {inferredNodes.length > 0 && (
+          <div style={{
+            padding: '8px 16px',
+            background: '#1a2a1a',
+            border: '1px solid #2a3a2a',
+            borderRadius: '8px',
+            fontSize: '12px',
+            color: '#34d399',
+            margin: '8px 0',
+          }}>
+            ◌ {inferredNodes.length === 1
+              ? `"${inferredNodes[0].title}" detected in your thinking`
+              : `${inferredNodes.length} concepts detected in your thinking`
+            }
+          </div>
         )}
         {loading && (
           <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'12px' }}>
