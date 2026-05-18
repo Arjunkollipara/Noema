@@ -116,12 +116,23 @@ TASK:
 Update the CURRENT STATE based on the RECENT CONVERSATION.
 
 INSTRUCTIONS:
-1. "current_summary": Evolve the existing summary. Do NOT replace it entirely. Incorporate new insights but preserve the user's own analogies and phrasing. Max 1000 characters.
-2. "frontier": Identify 2-3 specific leads, unresolved questions, or gaps in understanding that emerged. Be specific.
-3. "personal_lexicon": Extract unique words, metaphors, or analogies the user preferred during this session.
-4. "version": Increment the version by 1.
-5. PRESERVATION: If the conversation lacks meaningful insight or is too short, return the CURRENT STATE exactly as is (but increment version).
-6. TONE: Avoid "The user understands..." or "This session discussed...". Use "The user sees this as..." or "We know..." - prioritize the user's perspective.
+1. "current_summary": Write ONLY about this specific concept "${nodeTitle}".
+   Do NOT reference other concepts the user has discussed unless they
+   directly explain THIS concept. Write in first person from the user's
+   perspective. Use the user's own words, analogies, and phrasing.
+   Max 200 characters. Be concise and personal.
+2. "frontier": Identify 2-3 specific unresolved questions or gaps
+   that emerged about THIS concept specifically. Be precise.
+3. "personal_lexicon": Extract words, metaphors, or analogies the
+   user used specifically when talking about THIS concept.
+4. "version": Increment by 1.
+5. PRESERVATION: If the conversation is too short or lacks insight,
+   return CURRENT STATE exactly as is but increment version.
+6. CRITICAL: The summary must sound like the USER explaining the concept
+   in their own words - not a teacher summarising what the student missed.
+   WRONG: "The user struggles to understand X"
+   RIGHT: "X means showing only what is needed - like a button that does
+   something without exposing the event handlers behind it"
 
 OUTPUT:
 Respond with ONLY a single JSON object. No markdown. No preamble. No code fences.

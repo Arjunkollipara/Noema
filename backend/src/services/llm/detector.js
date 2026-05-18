@@ -127,6 +127,22 @@ async function createInferredNodes({
       ]
     );
 
+    // Create edge from source node to inferred node
+    if (sourceNodeId) {
+      const [sourceRows] = await pool.query(
+        'SELECT title FROM nodes WHERE id = ? AND user_id = ?',
+        [sourceNodeId, userId]
+      );
+      const sourceTitle = sourceRows[0]?.title || sourceNodeId;
+      const edgeId = uuidv4();
+      await pool.query(
+        `INSERT INTO edges (id, user_id, source_id, target_id, edge_type)
+         VALUES (?, ?, ?, ?, 'discovered_from')`,
+        [edgeId, userId, sourceNodeId, id]
+      );
+      console.log(`[detector] created edge: "${sourceTitle}" -> "${concept.concept_name}"`);
+    }
+
     createdTitlesThisBatch.add(titleLower);
     console.log(
       `[detector] created inferred node "${concept.concept_name}" ` +

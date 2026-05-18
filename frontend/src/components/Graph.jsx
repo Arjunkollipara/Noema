@@ -71,13 +71,38 @@ export default function Graph({ nodes, edges, onNodeClick, selectedNodeId }) {
     svg.call(zoom);
 
     // Draw edges
+    // Build a map of node id to cognitive_stage for edge weight
+    const stageMap = new Map(nodeData.map(n => [n.id, n.cognitive_stage || 1]));
+
     const link = g.append('g')
       .selectAll('line')
       .data(linkData)
       .join('line')
-      .attr('stroke', '#2a2a3e')
-      .attr('stroke-width', 1.5)
-      .attr('stroke-opacity', 0.6);
+      .attr('stroke', d => {
+        const stage = stageMap.get(d.target) || stageMap.get(d.target?.id) || 1;
+        if (stage >= 4) return '#f59e0b';
+        if (stage >= 3) return '#2dd4bf';
+        if (stage >= 2) return '#4a4a6e';
+        return '#2a2a3e';
+      })
+      .attr('stroke-width', d => {
+        const stage = stageMap.get(d.target) || stageMap.get(d.target?.id) || 1;
+        if (stage >= 4) return 3;
+        if (stage >= 3) return 2;
+        if (stage >= 2) return 1.5;
+        return 1;
+      })
+      .attr('stroke-opacity', d => {
+        const stage = stageMap.get(d.target) || stageMap.get(d.target?.id) || 1;
+        if (stage >= 4) return 0.9;
+        if (stage >= 3) return 0.7;
+        if (stage >= 2) return 0.5;
+        return 0.3;
+      })
+      .attr('stroke-dasharray', d => {
+        const stage = stageMap.get(d.target) || stageMap.get(d.target?.id) || 1;
+        return stage <= 1 ? '4 3' : 'none';
+      });
 
     // Draw node groups
     const node = g.append('g')

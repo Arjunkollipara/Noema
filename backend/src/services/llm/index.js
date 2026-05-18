@@ -198,6 +198,28 @@ async function chat({ nodeId, userId, userMessage }) {
     existingNodeTitles,
   });
 
+  // Defensive fallback: ensure inferred nodes are connected to the source node.
+  // This preserves graph visibility even if the detector path misses the edge write.
+  if (nodeId && inferredNodes.length > 0) {
+    for (const inferred of inferredNodes) {
+      const [existingEdges] = await pool.query(
+        `SELECT id FROM edges
+         WHERE user_id = ? AND source_id = ? AND target_id = ?`,
+        [userId, nodeId, inferred.id]
+      );
+
+      if (existingEdges.length === 0) {
+        const edgeId = uuidv4();
+        await pool.query(
+          `INSERT INTO edges (id, user_id, source_id, target_id, edge_type)
+           VALUES (?, ?, ?, ?, 'discovered_from')`,
+          [edgeId, userId, nodeId, inferred.id]
+        );
+        console.log(`[detector] created edge: "${node.title}" -> "${inferred.title}"`);
+      }
+    }
+  }
+
 
   // 7. Build stage-aware system prompt
   const finalSystemPrompt = buildStageAwareSystemPrompt(

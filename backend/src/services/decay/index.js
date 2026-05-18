@@ -71,7 +71,7 @@ async function runSynthesisBatch() {
       try {
         // 2. Fetch last 20 messages for context
         const [messages] = await pool.query(
-          'SELECT role, content FROM messages WHERE node_id = ? ORDER BY created_at DESC LIMIT 20',
+          'SELECT role, content FROM messages WHERE node_id = ? ORDER BY created_at DESC LIMIT 10',
           [node.id]
         );
         
