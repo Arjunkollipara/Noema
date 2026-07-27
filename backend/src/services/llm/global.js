@@ -4,6 +4,32 @@ const { findSimilarNodes } = require('../memory');
 const { detectImplicitConcepts, createInferredNodes } = require('./detector');
 const { v4: uuidv4 } = require('uuid');
 
+function isExplicitConfusion(message) {
+  const confusionSignals = [
+    'i don\'t know', 'i dont know', 'i have no idea',
+    'i don\'t understand', 'i dont understand',
+    'please explain', 'can you explain', 'just tell me',
+    'explain it to me', 'i give up', 'i\'m lost', 'im lost',
+    'i\'m confused', 'im confused',
+    'help me understand',
+  ];
+
+  const lower = (message || '').toLowerCase();
+  return confusionSignals.some(s => lower.includes(s));
+}
+
+function enforceStatementEnding(message) {
+  const trimmed = (message || '').trim();
+  const withoutQuestions = trimmed.replace(/\?/g, '.').trim();
+  if (withoutQuestions.length === 0) {
+    return 'Take a moment with that.';
+  }
+
+  return withoutQuestions.endsWith('.')
+    ? withoutQuestions
+    : `${withoutQuestions}.`;
+}
+
 async function getRecentNodes(userId, limit = 3) {
   const [rows] = await pool.query(
     `SELECT * FROM nodes
@@ -91,8 +117,14 @@ Just have a natural conversation. The system handles everything else.`;
 
   if (userIsLost) {
     prompt += `\n\nCRITICAL OVERRIDE - USER HAS EXPRESSED THEY DO NOT KNOW:
-Do NOT ask a question. Give ONE clear simple explanation using an everyday
-analogy (2 sentences), then ask ONE small question to check if it landed.`;
+The user has explicitly said they do not know or cannot answer.
+DO NOT ask any question in this response.
+Instead:
+1. Give ONE clear direct explanation in 2-3 sentences using an everyday analogy
+2. End with a statement not a question - let them absorb it first
+3. The next turn can resume Socratic questioning once they have something to work with
+Example format: "X works like Y. This means Z. Take a moment with that."
+NEVER end this response with a question mark.`;
   }
 
   return prompt;
@@ -167,7 +199,10 @@ async function globalChat({ userId, userMessage }) {
     messages,
   });
 
-  const assistantMessage = response.choices[0].message.content;
+  let assistantMessage = response.choices[0].message.content;
+  if (isExplicitConfusion(userMessage)) {
+    assistantMessage = enforceStatementEnding(assistantMessage);
+  }
 
   const assistantMsgId = uuidv4();
   await pool.query(

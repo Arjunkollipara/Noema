@@ -276,15 +276,17 @@ Do not tell them they are wrong. Ask a question that makes the distinction visib
 
   if (userIsLost && cognitiveStage < 4) {
     prompt += `\n\nCRITICAL OVERRIDE - USER HAS EXPRESSED THEY DO NOT KNOW:
-Do NOT ask a question right now. The user has no foundation to answer from.
+The user has explicitly said they do not know or cannot answer.
+DO NOT ask any question in this response.
 Instead:
-1. Give ONE clear, simple explanation using an everyday analogy (2 sentences max)
-2. Then ask ONE small question to check if it landed
-This is not abandoning the Socratic method - it is applying it correctly.
-Even Socrates started from where the student already stood.\n`;
+1. Give ONE clear direct explanation in 2-3 sentences using an everyday analogy
+2. End with a statement not a question - let them absorb it first
+3. The next turn can resume Socratic questioning once they have something to work with
+Example format: "X works like Y. This means Z. Take a moment with that."
+NEVER end this response with a question mark.\n`;
   }
 
-  if (cognitiveStage < 5) {
+  if (cognitiveStage < 5 && !(userIsLost && cognitiveStage < 4)) {
     prompt += `\n\nIMPORTANT: Ask ONE question only. Do not give the answer. Do not explain the concept directly.`;
   }
 

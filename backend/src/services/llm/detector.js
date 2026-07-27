@@ -9,6 +9,10 @@ async function detectImplicitConcepts({
   userId,
   sourceNodeId,
 }) {
+  if (userMessage.trim().length < 20) {
+    return [];
+  }
+
   const { client, model } = getProvider();
 
   const historyText = conversationHistory
@@ -48,9 +52,10 @@ For each detected concept output:
 - evidence: the exact phrase that triggered detection
 - why_relevant: one sentence on why this concept matters here
 
-Only include concepts with confidence >= 0.92.
-Be very conservative. Only detect concepts you are highly certain about.
-It is better to miss a concept than to create noise.
+Only include concepts with confidence >= 0.95.
+Be extremely conservative. Only detect ONE concept per message maximum.
+If multiple concepts qualify, return only the single highest confidence one.
+It is far better to miss a concept than to create noise.
 If nothing is detected return empty array.
 
 Output ONLY this JSON. No markdown. No preamble:
@@ -91,9 +96,15 @@ async function createInferredNodes({
 }) {
   const created = [];
   const createdTitlesThisBatch = new Set();
+  const MAX_NODES_PER_MESSAGE = 1;
 
   for (const concept of detected) {
-    if (concept.confidence < 0.92) continue;
+    if (created.length >= MAX_NODES_PER_MESSAGE) {
+      console.log('[detector] max nodes per message reached, skipping remaining');
+      break;
+    }
+
+    if (concept.confidence < 0.95) continue;
 
     const titleLower = concept.concept_name.toLowerCase().trim();
     const alreadyExists = existingNodeTitles

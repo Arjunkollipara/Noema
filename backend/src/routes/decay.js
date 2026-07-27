@@ -7,7 +7,7 @@ const router = express.Router();
 // POST /api/decay/run — manually trigger decay update (dev tool)
 router.post('/run', async (req, res) => {
   try {
-    const result = await runDecayUpdate();
+    const result = await runDecayUpdate(req.userId);
     res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ error: 'Decay update failed' });
@@ -18,7 +18,8 @@ router.post('/run', async (req, res) => {
 router.get('/preview', async (req, res) => {
   try {
     const [nodes] = await pool.query(
-      'SELECT id, title, last_visited, decay_score FROM nodes'
+      'SELECT id, title, last_visited, decay_score FROM nodes WHERE user_id = ?',
+      [req.userId]
     );
     const preview = nodes.map(n => ({
       id: n.id,

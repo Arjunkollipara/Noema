@@ -6,6 +6,41 @@ const { detectImplicitConcepts, createInferredNodes } = require('./detector');
 const { v4: uuidv4 } = require('uuid');
 const { storeTrace, findSimilarNodes } = require('../memory');
 
+function isExplicitConfusion(message) {
+  const confusionSignals = [
+    'i don\'t know',
+    'i dont know',
+    'i have no idea',
+    'i don\'t understand',
+    'i dont understand',
+    'please explain',
+    'can you explain',
+    'just tell me',
+    'explain it to me',
+    'i give up',
+    'i\'m lost',
+    'im lost',
+    'i\'m confused',
+    'im confused',
+    'help me understand',
+  ];
+
+  const lower = (message || '').toLowerCase();
+  return confusionSignals.some(signal => lower.includes(signal));
+}
+
+function enforceStatementEnding(message) {
+  const trimmed = (message || '').trim();
+  const withoutQuestions = trimmed.replace(/\?/g, '.').trim();
+  if (withoutQuestions.length === 0) {
+    return 'Take a moment with that.';
+  }
+
+  return withoutQuestions.endsWith('.')
+    ? withoutQuestions
+    : `${withoutQuestions}.`;
+}
+
 // SPRINT 1: Helper to inject MVI State into the system prompt
 function injectMviContext(systemPrompt, mviState) {
   if (!mviState) return systemPrompt;
@@ -247,7 +282,10 @@ async function chat({ nodeId, userId, userMessage }) {
     messages,
   });
 
-  const assistantMessage = response.choices[0].message.content;
+  let assistantMessage = response.choices[0].message.content;
+  if (isExplicitConfusion(userMessage)) {
+    assistantMessage = enforceStatementEnding(assistantMessage);
+  }
 
   // 10. Save assistant message
   await pool.query(

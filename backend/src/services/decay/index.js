@@ -10,12 +10,14 @@ function calculateDecayScore(lastVisited) {
   return Math.round(Math.exp(-0.05 * days) * 10000) / 10000;
 }
 
-async function runDecayUpdate() {
+async function runDecayUpdate(userId) {
   console.log('[decay] running decay update...');
   try {
-    const [nodes] = await pool.query(
-      'SELECT id, last_visited FROM nodes'
-    );
+    const query = userId
+      ? 'SELECT id, last_visited FROM nodes WHERE user_id = ?'
+      : 'SELECT id, last_visited FROM nodes';
+    const params = userId ? [userId] : [];
+    const [nodes] = await pool.query(query, params);
 
     let updated = 0;
     for (const node of nodes) {
