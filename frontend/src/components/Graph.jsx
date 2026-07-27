@@ -1,33 +1,53 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { decayToVisual } from '../utils/decay';
 
 export default function Graph({ nodes, edges, onNodeClick, selectedNodeId }) {
   const svgRef = useRef(null);
   const simulationRef = useRef(null);
+  const [viewport, setViewport] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
 
-  const width = window.innerWidth;
-  const height = window.innerHeight;
+  useEffect(() => {
+    const onResize = () => {
+      setViewport({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     if (!svgRef.current) return;
 
+    const width = viewport.width;
+    const height = viewport.height;
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
+
+    if (simulationRef.current) {
+      simulationRef.current.stop();
+    }
 
     if (nodes.length === 0) {
       svg.append('text')
         .attr('x', width / 2)
         .attr('y', height / 2)
         .attr('text-anchor', 'middle')
-        .attr('fill', '#2a2a3e')
-        .attr('font-size', '16px')
-        .text('Your knowledge graph is empty. Create your first node.');
+        .attr('fill', '#1e1e2e')
+        .attr('font-size', '14px')
+        .attr('letter-spacing', '0.05em')
+        .text('your mind is a blank canvas - click Think to begin');
       return;
     }
 
-    // Build D3 node and link data
     const nodeMap = new Map(nodes.map(n => [n.id, { ...n }]));
+    const nodeData = Array.from(nodeMap.values());
     const linkData = edges
       .filter(e => nodeMap.has(e.source_id) && nodeMap.has(e.target_id))
       .map(e => ({
@@ -36,75 +56,77 @@ export default function Graph({ nodes, edges, onNodeClick, selectedNodeId }) {
         target: e.target_id,
         edge_type: e.edge_type,
       }));
-    const nodeData = Array.from(nodeMap.values());
-    console.log('[graph] nodes:', nodeData.map(n => ({
-      title: n.title,
-      is_anchored: n.is_anchored,
-      node_origin: n.node_origin,
-    })));
 
-    // Defs for glow filter
+    const stageMap = new Map(nodeData.map(n => [n.id, n.cognitive_stage || 1]));
+
     const defs = svg.append('defs');
-    const filter = defs.append('filter').attr('id', 'glow');
-    filter.append('feGaussianBlur')
-      .attr('stdDeviation', '3')
-      .attr('result', 'coloredBlur');
-    const feMerge = filter.append('feMerge');
-    feMerge.append('feMergeNode').attr('in', 'coloredBlur');
-    feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+    const makeGlow = (id, blur) => {
+      const filter = defs.append('filter').attr('id', id);
+      filter.append('feGaussianBlur').attr('stdDeviation', blur).attr('result', 'coloredBlur');
+      const merge = filter.append('feMerge');
+      merge.append('feMergeNode').attr('in', 'coloredBlur');
+      merge.append('feMergeNode').attr('in', 'SourceGraphic');
+    };
+
+    makeGlow('glow-warm', 4);
+    makeGlow('glow-cool', 3);
+    makeGlow('glow-selected', 8);
+
     defs.append('style').text(`
+      @keyframes nodePulse {
+        0%, 100% { opacity: 0.85; }
+        50% { opacity: 1; }
+      }
       @keyframes nodeFloat {
-        0%, 100% { opacity: 0.4; transform: scale(1); }
-        50% { opacity: 0.8; transform: scale(1.15); }
+        0%, 100% { opacity: 0.35; transform: scale(0.96); }
+        50% { opacity: 0.55; transform: scale(1.04); }
       }
     `);
 
-    // Container group for zoom
     const g = svg.append('g');
 
-    // Zoom behaviour
     const zoom = d3.zoom()
-      .scaleExtent([0.2, 3])
-      .on('zoom', (event) => {
-        g.attr('transform', event.transform);
-      });
-    svg.call(zoom);
+      .scaleExtent([0.15, 4])
+      .on('zoom', event => g.attr('transform', event.transform));
 
-    // Draw edges
-    // Build a map of node id to cognitive_stage for edge weight
-    const stageMap = new Map(nodeData.map(n => [n.id, n.cognitive_stage || 1]));
+    svg.call(zoom);
+    svg.on('click', () => onNodeClick(null));
+
+    const getStage = value => {
+      if (typeof value === 'object' && value?.id) {
+        return stageMap.get(value.id) || 1;
+      }
+      return stageMap.get(value) || 1;
+    };
 
     const link = g.append('g')
       .selectAll('line')
       .data(linkData)
       .join('line')
       .attr('stroke', d => {
-        const stage = stageMap.get(d.target) || stageMap.get(d.target?.id) || 1;
+        const stage = getStage(d.target);
         if (stage >= 4) return '#f59e0b';
         if (stage >= 3) return '#2dd4bf';
         if (stage >= 2) return '#4a4a6e';
-        return '#2a2a3e';
+        return '#1e1e2e';
       })
       .attr('stroke-width', d => {
-        const stage = stageMap.get(d.target) || stageMap.get(d.target?.id) || 1;
-        if (stage >= 4) return 3;
-        if (stage >= 3) return 2;
-        if (stage >= 2) return 1.5;
-        return 1;
+        const stage = getStage(d.target);
+        if (stage >= 4) return 2.5;
+        if (stage >= 3) return 1.8;
+        if (stage >= 2) return 1.2;
+        return 0.8;
       })
       .attr('stroke-opacity', d => {
-        const stage = stageMap.get(d.target) || stageMap.get(d.target?.id) || 1;
-        if (stage >= 4) return 0.9;
-        if (stage >= 3) return 0.7;
-        if (stage >= 2) return 0.5;
-        return 0.3;
+        const stage = getStage(d.target);
+        if (stage >= 4) return 0.8;
+        if (stage >= 3) return 0.6;
+        if (stage >= 2) return 0.4;
+        return 0.18;
       })
-      .attr('stroke-dasharray', d => {
-        const stage = stageMap.get(d.target) || stageMap.get(d.target?.id) || 1;
-        return stage <= 1 ? '4 3' : 'none';
-      });
+      .attr('stroke-dasharray', d => (getStage(d.target) <= 1 ? '3 4' : 'none'));
 
-    // Draw node groups
     const node = g.append('g')
       .selectAll('g')
       .data(nodeData)
@@ -115,26 +137,25 @@ export default function Graph({ nodes, edges, onNodeClick, selectedNodeId }) {
         onNodeClick(d);
       });
 
-    // Outer glow ring for selected node
     node.append('circle')
-      .attr('r', d => {
-        const { radius } = decayToVisual(d.decay_score);
-        return radius + 6;
-      })
+      .attr('r', d => decayToVisual(d.decay_score).radius + 10)
       .attr('fill', 'none')
-      .attr('stroke', d => d.id === selectedNodeId ? '#f59e0b' : 'none')
-      .attr('stroke-width', 1.5)
-      .attr('stroke-opacity', 0.5);
+      .attr('stroke', d => (d.id === selectedNodeId ? '#f59e0b' : 'none'))
+      .attr('stroke-width', 1)
+      .attr('stroke-opacity', 0.35)
+      .attr('filter', d => (d.id === selectedNodeId ? 'url(#glow-selected)' : 'none'));
 
-    // Main node circle
     node.append('circle')
-      .attr('r', d => decayToVisual(d.decay_score).radius)
-      .attr('class', 'node-main')
+      .attr('r', d => (d.is_anchored === 0 ? 6 : decayToVisual(d.decay_score).radius))
       .attr('fill', d => {
         if (d.is_anchored === 0) return 'transparent';
+        const stage = d.cognitive_stage || 1;
+        if (stage >= 4) return '#f59e0b';
+        if (stage >= 3) return '#2dd4bf';
+        if (stage >= 2) return '#6366f1';
         return decayToVisual(d.decay_score).colour;
       })
-      .attr('opacity', d => d.is_anchored === 0 ? 0.6 : decayToVisual(d.decay_score).opacity)
+      .attr('opacity', d => (d.is_anchored === 0 ? 0 : decayToVisual(d.decay_score).opacity))
       .attr('stroke', d => {
         if (d.is_anchored === 0) {
           if (d.node_origin === 'blocking') return '#ef4444';
@@ -143,44 +164,40 @@ export default function Graph({ nodes, edges, onNodeClick, selectedNodeId }) {
         }
         return 'none';
       })
-      .attr('stroke-width', d => d.is_anchored === 0 ? 1.5 : 0)
-      .attr('stroke-dasharray', d => d.is_anchored === 0 ? '4 2' : 'none')
-      .attr('filter', d => d.is_anchored === 1 ? 'url(#glow)' : 'none');
+      .attr('stroke-width', d => (d.is_anchored === 0 ? 1 : 0))
+      .attr('stroke-dasharray', d => (d.is_anchored === 0 ? '3 3' : 'none'))
+      .attr('filter', d => {
+        if (d.is_anchored === 0) return 'none';
+        const stage = d.cognitive_stage || 1;
+        return stage >= 3 ? 'url(#glow-warm)' : 'url(#glow-cool)';
+      })
+      .style('animation', d => {
+        if (d.is_anchored === 0) return 'nodeFloat 3s ease-in-out infinite';
+        return (d.cognitive_stage || 1) >= 3 ? 'nodePulse 3s ease-in-out infinite' : 'none';
+      });
 
-    node.filter(d => d.is_anchored === 0)
-      .select('circle.node-main')
-      .style('animation', 'nodeFloat 2.5s ease-in-out infinite');
-
-    // Node label
     node.append('text')
-      .text(d => d.title.length > 20 ? d.title.slice(0, 20) + '...' : d.title)
+      .text(d => (d.title.length > 22 ? `${d.title.slice(0, 22)}...` : d.title))
       .attr('text-anchor', 'middle')
-      .attr('dy', d => decayToVisual(d.decay_score).radius + 14)
-      .attr('fill', '#9ca3af')
-      .attr('font-size', '11px')
-      .attr('pointer-events', 'none');
-
-    node.filter(d => d.is_anchored === 0)
-      .append('text')
-      .text(d => {
-        if (d.node_origin === 'blocking') return '⊗';
-        if (d.node_origin === 'expected') return '◎';
-        return '◌';
+      .attr('dy', d => {
+        const r = d.is_anchored === 0 ? 6 : decayToVisual(d.decay_score).radius;
+        return r + 14;
       })
-      .attr('text-anchor', 'middle')
-      .attr('dy', d => -(decayToVisual(d.decay_score).radius + 8))
       .attr('fill', d => {
-        if (d.node_origin === 'blocking') return '#ef4444';
-        if (d.node_origin === 'expected') return '#a78bfa';
-        return '#2dd4bf';
+        if (d.is_anchored === 0) return '#3a3a5e';
+        const stage = d.cognitive_stage || 1;
+        if (stage >= 4) return '#f59e0b';
+        if (stage >= 3) return '#2dd4bf';
+        return '#6b7280';
       })
-      .attr('font-size', '10px')
-      .attr('pointer-events', 'none');
+      .attr('font-size', d => ((d.cognitive_stage || 1) >= 3 ? '11px' : '10px'))
+      .attr('font-weight', d => ((d.cognitive_stage || 1) >= 3 ? '500' : '400'))
+      .attr('pointer-events', 'none')
+      .attr('letter-spacing', '0.02em');
 
-    // Drag behaviour
     const drag = d3.drag()
       .on('start', (event, d) => {
-        if (!event.active) simulationRef.current.alphaTarget(0.3).restart();
+        if (!event.active) simulationRef.current?.alphaTarget(0.15).restart();
         d.fx = d.x;
         d.fy = d.y;
       })
@@ -189,27 +206,41 @@ export default function Graph({ nodes, edges, onNodeClick, selectedNodeId }) {
         d.fy = event.y;
       })
       .on('end', (event, d) => {
-        if (!event.active) simulationRef.current.alphaTarget(0);
-        d.fx = null;
-        d.fy = null;
+        if (!event.active) simulationRef.current?.alphaTarget(0);
       });
 
     node.call(drag);
 
-    // Click on background deselects
-    svg.on('click', () => onNodeClick(null));
+    const orbitRadius = stage => {
+      const s = Math.max(1, Math.min(5, stage || 1));
+      const orbits = { 1: 0.42, 2: 0.32, 3: 0.22, 4: 0.13, 5: 0.06 };
+      return (orbits[s] || 0.42) * Math.min(width, height);
+    };
 
-    // Force simulation
+    const chargeForStage = stage => {
+      const charges = { 1: -280, 2: -220, 3: -160, 4: -100, 5: -60 };
+      return charges[stage || 1] || -280;
+    };
+
     const simulation = d3.forceSimulation(nodeData)
       .force('link', d3.forceLink(linkData)
         .id(d => d.id)
-        .distance(120)
-      )
-      .force('charge', d3.forceManyBody().strength(-300))
+        .distance(d => {
+          const targetStage = getStage(d.target);
+          const distances = { 1: 180, 2: 140, 3: 100, 4: 70, 5: 45 };
+          return distances[targetStage] || 180;
+        })
+        .strength(d => {
+          const targetStage = getStage(d.target);
+          return targetStage >= 4 ? 0.8 : targetStage >= 3 ? 0.6 : 0.3;
+        }))
+      .force('charge', d3.forceManyBody().strength(d => chargeForStage(d.cognitive_stage)))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide()
-        .radius(d => decayToVisual(d.decay_score).radius + 20)
-      )
+      .force('collision', d3.forceCollide().radius(d => {
+        const r = d.is_anchored === 0 ? 6 : decayToVisual(d.decay_score).radius;
+        return r + 18;
+      }))
+      .force('depth', d3.forceRadial(d => orbitRadius(d.cognitive_stage), width / 2, height / 2).strength(0.12))
       .on('tick', () => {
         link
           .attr('x1', d => d.source.x)
@@ -218,26 +249,23 @@ export default function Graph({ nodes, edges, onNodeClick, selectedNodeId }) {
           .attr('y2', d => d.target.y);
 
         node.attr('transform', d => `translate(${d.x},${d.y})`);
-      });
+      })
+      .on('end', () => simulation.stop());
 
     simulationRef.current = simulation;
 
-    // Stop simulation after it settles
-    simulation.on('end', () => {
-      simulation.stop();
-    });
-
-    return () => {
-      simulation.stop();
-    };
-  }, [nodes, edges, selectedNodeId, width, height, onNodeClick]);
+    return () => simulation.stop();
+  }, [nodes, edges, selectedNodeId, viewport, onNodeClick]);
 
   return (
     <svg
       ref={svgRef}
-      width={width}
-      height={height}
-      style={{ display: 'block', background: '#0a0a0f' }}
+      width={viewport.width}
+      height={viewport.height}
+      style={{
+        display: 'block',
+        background: 'radial-gradient(circle at center, #11111a 0%, #07070a 55%, #060608 100%)',
+      }}
     />
   );
 }
