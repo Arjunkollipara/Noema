@@ -10,5 +10,7 @@ mysql_data/
 qdrant_data/
 redis_data/
 cookies.txt
+docker_cookies.txt
+test_cookies.txt
 .vscode/
 .idea/
