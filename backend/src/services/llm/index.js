@@ -3,6 +3,8 @@ const { getProvider } = require('./provider');
 const { buildSystemPrompt, buildClassifierPrompt, buildStageAwareSystemPrompt } = require('./prompts');
 const { evaluateMessage, maybeAdvanceStage } = require('./evaluator');
 const { detectImplicitConcepts, createInferredNodes } = require('./detector');
+const { readAssociations } = require('./associationReader');
+const { updateLearnerProfile, getLearnerProfile } = require('./learnerProfile');
 const { v4: uuidv4 } = require('uuid');
 const { storeTrace, findSimilarNodes } = require('../memory');
 
@@ -134,6 +136,7 @@ async function chat({ nodeId, userId, userMessage }) {
   if (nodes.length === 0) throw new Error('Node not found');
   const node = nodes[0];
   const currentStage = node.cognitive_stage || 1;
+  const learnerProfile = await getLearnerProfile(userId).catch(() => null);
 
   // 2. Load conversation history for this node
   const [history] = await pool.query(
@@ -193,7 +196,8 @@ async function chat({ nodeId, userId, userMessage }) {
 
 
   // 5. Run classifier and evaluator in parallel with saving message
-  const [classifierResult, evaluatorResult, detectedConcepts] = await Promise.all([
+  const userMsgId = uuidv4();
+  const [classifierResult, evaluatorResult, detectedConcepts, associationResult] = await Promise.all([
     classifyMessage(userMessage),
     evaluateMessage({
       userMessage,
@@ -208,9 +212,18 @@ async function chat({ nodeId, userId, userMessage }) {
       userId,
       sourceNodeId: nodeId,
     }),
+    readAssociations({
+      client: getProvider().client,
+      userMessage,
+      conversationHistory: history,
+      existingNodeTitles,
+      userId,
+      nodeId,
+      messageId: userMsgId,
+    }),
     pool.query(
       'INSERT INTO messages (id, node_id, user_id, role, content, phase, cognitive_stage) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [uuidv4(), nodeId, userId, 'user', userMessage, node.phase, currentStage]
+      [userMsgId, nodeId, userId, 'user', userMessage, node.phase, currentStage]
     ),
   ]);
 
@@ -225,6 +238,17 @@ async function chat({ nodeId, userId, userMessage }) {
 
   // Advance cognitive stage if needed
   const newStage = await maybeAdvanceStage(nodeId, userId, currentStage, evaluatorResult);
+
+  const [msgCountResult] = await pool.query(
+    'SELECT COUNT(*) as count FROM association_signals WHERE user_id = ?',
+    [userId]
+  );
+  const totalSignals = msgCountResult[0].count;
+  if (totalSignals % 5 === 0) {
+    updateLearnerProfile(userId).catch(err =>
+      console.error('[profile] update error:', err.message)
+    );
+  }
 
   const inferredNodes = await createInferredNodes({
     detected: detectedConcepts,
@@ -265,7 +289,8 @@ async function chat({ nodeId, userId, userMessage }) {
     node.mvi_state,
     newStage,
     evaluatorResult,
-    userMessage
+    userMessage,
+    learnerProfile
   );
 
   // 8. Build messages array
@@ -333,6 +358,11 @@ async function chat({ nodeId, userId, userMessage }) {
     stage_advanced: newStage !== currentStage,
     misconception_detected: evaluatorResult.misconception_detected,
     inferred_nodes: inferredNodes,
+    association: {
+      emotional_tone: associationResult.emotional_tone,
+      moment_type: associationResult.moment_type,
+      activated_concepts: associationResult.activated_concepts,
+    },
     classifier: classifierResult,
     provider,
   };

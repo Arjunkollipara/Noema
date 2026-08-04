@@ -2,6 +2,8 @@ const pool = require('../../db/pool');
 const { getProvider } = require('./provider');
 const { findSimilarNodes } = require('../memory');
 const { detectImplicitConcepts, createInferredNodes } = require('./detector');
+const { readAssociations } = require('./associationReader');
+const { updateLearnerProfile, getLearnerProfile } = require('./learnerProfile');
 const { v4: uuidv4 } = require('uuid');
 
 function isExplicitConfusion(message) {
@@ -69,7 +71,7 @@ async function buildGlobalContext(userId, userMessage) {
   return contextNodes;
 }
 
-function buildGlobalSystemPrompt(contextNodes, userMessage) {
+function buildGlobalSystemPrompt(contextNodes, userMessage, learnerProfile) {
   let prompt = `You are Noema, a personal knowledge companion.
 You are having an ongoing conversation with a user who is building
 their personal knowledge graph over time.
@@ -99,6 +101,35 @@ Your role:
     prompt += `\n\nUse this context to make connections and build on what the user already knows.
 Reference their own analogies and terminology when relevant.\n`;
   }
+
+  if (learnerProfile?.thinking_style?.dominant) {
+    const style = learnerProfile.thinking_style.dominant;
+    const tone = learnerProfile.dominant_tone?.[0]?.tone || 'neutral';
+
+    const styleInstructions = {
+      spatial: 'This user thinks visually and spatially. Use diagrams described in words, physical analogies, and movement metaphors.',
+      sequential: 'This user thinks in steps and sequences. Use numbered progressions and ordered explanations.',
+      contrast: 'This user understands through contrast. Explain what something IS by showing what it is NOT.',
+      analogy: 'This user learns through analogy. Always anchor new concepts to something familiar first.',
+    };
+
+    const toneInstructions = {
+      frustrated: 'The user has been frustrated recently. Be extra patient, direct, and encouraging. Shorter responses.',
+      lost: 'The user has been lost recently. Slow down. Use simpler language. Confirm understanding before moving on.',
+      excited: 'The user is in an engaged state. Match their energy. Make connections. Build momentum.',
+      curious: 'The user is curious. Feed that curiosity. Hint at what comes next.',
+      confident: 'The user is feeling confident. Challenge them slightly. Introduce complexity.',
+    };
+
+    prompt += `\nLEARNER PROFILE:\n`;
+    if (styleInstructions[style]) prompt += `${styleInstructions[style]}\n`;
+    if (toneInstructions[tone]) prompt += `${toneInstructions[tone]}\n`;
+  }
+
+  prompt += `\nCONVERSATION RHYTHM:
+Explain one thing clearly, then check if it landed with one question.
+Talk WITH the user not AT them. Match their energy.
+Never ask two questions in a row without explaining something first.\n`;
 
   prompt += `\nIMPORTANT: The graph updates silently in the background.
 Never mention nodes, the graph, or the system architecture to the user.
@@ -144,6 +175,7 @@ async function globalChat({ userId, userMessage }) {
   const orderedHistory = history.reverse();
 
   const contextNodes = await buildGlobalContext(userId, userMessage);
+  const learnerProfile = await getLearnerProfile(userId).catch(() => null);
 
   const [allNodes] = await pool.query(
     'SELECT id, title FROM nodes WHERE user_id = ?',
@@ -151,7 +183,7 @@ async function globalChat({ userId, userMessage }) {
   );
   const existingNodeTitles = allNodes.map(n => n.title);
 
-  const systemPrompt = buildGlobalSystemPrompt(contextNodes, userMessage);
+  const systemPrompt = buildGlobalSystemPrompt(contextNodes, userMessage, learnerProfile);
 
   const userMsgId = uuidv4();
   await pool.query(
@@ -159,13 +191,22 @@ async function globalChat({ userId, userMessage }) {
     [userMsgId, userId, 'user', userMessage]
   );
 
-  const [detectedConcepts] = await Promise.all([
+  const [detectedConcepts, associationResult] = await Promise.all([
     detectImplicitConcepts({
       userMessage,
       nodeTitle: 'global conversation',
       conversationHistory: orderedHistory,
       userId,
       sourceNodeId: null,
+    }),
+    readAssociations({
+      client: getProvider().client,
+      userMessage,
+      conversationHistory: orderedHistory,
+      existingNodeTitles,
+      userId,
+      nodeId: null,
+      messageId: userMsgId,
     }),
   ]);
 
@@ -185,6 +226,14 @@ async function globalChat({ userId, userMessage }) {
        WHERE id = ?`,
       [node.id]
     );
+  }
+
+  const [sigCount] = await pool.query(
+    'SELECT COUNT(*) as count FROM association_signals WHERE user_id = ?',
+    [userId]
+  );
+  if (sigCount[0].count % 5 === 0) {
+    updateLearnerProfile(userId).catch(() => {});
   }
 
   const messages = [
@@ -224,6 +273,10 @@ async function globalChat({ userId, userMessage }) {
     provider,
     inferred_nodes: inferredNodes,
     context_nodes: contextNodes.map(n => ({ id: n.id, title: n.title })),
+    association: {
+      emotional_tone: associationResult.emotional_tone,
+      moment_type: associationResult.moment_type,
+    },
   };
 }
 

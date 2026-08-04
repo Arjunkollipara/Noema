@@ -152,7 +152,7 @@ module.exports = {
 };
 
 
-function buildStageAwareSystemPrompt(phase, nodeTitle, nodeSummary, neighbours, mviState, cognitiveStage, evaluatorResult, lastUserMessage) {
+function buildStageAwareSystemPrompt(phase, nodeTitle, nodeSummary, neighbours, mviState, cognitiveStage, evaluatorResult, lastUserMessage, learnerProfile) {
 
   const STAGE_INSTRUCTIONS = {
     1: `The learner is at Stage 1 (Ignition). Your job is to spark curiosity
@@ -210,6 +210,18 @@ Rules:
 
 COGNITIVE STAGE INSTRUCTION:
 ${stageInstruction}
+`;
+
+  prompt += `
+CONVERSATION RHYTHM - CRITICAL:
+Follow this pattern strictly:
+1. Explain one thing clearly using a concrete analogy or example
+2. Then check if it landed with ONE question maximum
+3. If user shows understanding - explain the next layer
+4. If user shows confusion - try a DIFFERENT angle, not the same question rephrased
+5. Never ask two questions in a row without explaining something in between
+6. Your response should feel like talking WITH the user not AT them
+7. Match the user's energy - if they are excited, be engaged. If they are lost, be patient and direct.
 `;
 
   if (evaluatorResult?.misconception_detected && evaluatorResult.misconception_detail) {
@@ -275,15 +287,34 @@ Do not tell them they are wrong. Ask a question that makes the distinction visib
   );
 
   if (userIsLost && cognitiveStage < 4) {
-    prompt += `\n\nCRITICAL OVERRIDE - USER HAS EXPRESSED THEY DO NOT KNOW:
-The user has explicitly said they do not know or cannot answer.
-DO NOT ask any question in this response.
-Instead:
-1. Give ONE clear direct explanation in 2-3 sentences using an everyday analogy
-2. End with a statement not a question - let them absorb it first
-3. The next turn can resume Socratic questioning once they have something to work with
-Example format: "X works like Y. This means Z. Take a moment with that."
-NEVER end this response with a question mark.\n`;
+    prompt += `\nUSER IS LOST - SWITCH TO TEACHER MODE:
+Do not ask any question in this response.
+Explain the concept directly in 2-3 sentences using a concrete everyday analogy.
+End with a statement like "Take a moment with that" or "Does that picture make sense."
+Never end with a question mark in this response.\n`;
+  }
+
+  if (learnerProfile?.thinking_style?.dominant) {
+    const style = learnerProfile.thinking_style.dominant;
+    const tone = learnerProfile.dominant_tone?.[0]?.tone || 'neutral';
+
+    const styleMap = {
+      spatial: 'Use physical, spatial analogies. Describe things in terms of movement and space.',
+      sequential: 'Use step-by-step explanations. Number your points.',
+      contrast: 'Explain by contrast - what this is vs what it is not.',
+      analogy: 'Always anchor to something familiar first before introducing the new concept.',
+    };
+
+    const toneMap = {
+      frustrated: 'Be patient and direct. Short responses. No complexity right now.',
+      lost: 'Slow down. Simpler language. Confirm before moving forward.',
+      excited: 'Match their energy. Build momentum. Make connections.',
+      curious: 'Feed curiosity. Hint at depth.',
+      confident: 'Introduce slight challenge.',
+    };
+
+    if (styleMap[style]) prompt += `\nSTYLE: ${styleMap[style]}\n`;
+    if (toneMap[tone]) prompt += `TONE: ${toneMap[tone]}\n`;
   }
 
   if (cognitiveStage < 5 && !(userIsLost && cognitiveStage < 4)) {

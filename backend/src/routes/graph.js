@@ -1,6 +1,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../db/pool');
+const { getLearnerProfile } = require('../services/llm/learnerProfile');
 
 const router = express.Router();
 
@@ -278,6 +279,22 @@ router.delete('/edges/:id', async (req, res) => {
   } catch (err) {
     console.error('[graph] DELETE /edges/:id error:', err);
     res.status(500).json({ error: 'Failed to delete edge' });
+  }
+});
+
+router.get('/profile', async (req, res) => {
+  try {
+    const profile = await getLearnerProfile(req.userId);
+    if (!profile) {
+      return res.json({
+        message: 'Not enough data yet. Keep exploring.',
+        total_messages_analyzed: 0,
+      });
+    }
+    res.json(profile);
+  } catch (err) {
+    console.error('[profile] GET error:', err);
+    res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
 
